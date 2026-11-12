@@ -8,7 +8,7 @@ def frames(p):
         ok, f = c.read()
         if not ok: return np.array(out)
         # every mark we target sits in the bottom-right 256x128; '*.crop.mkv' outputs are already exactly that
-        out.append(f if ".crop." in p else f[-128:, -256:].copy())
+        out.append(f[-128:, -256:].copy())   # crops are bottom-right aligned, so this works for full and crop files
 
 orig_p, outs = sys.argv[1], [a.split("=", 1) for a in sys.argv[2:] if "=" in a]
 FIXED = "--fixed" in sys.argv  # known Veo-small box in the 256x128 corner crop (219,103,21,9); change-based bbox fails on faint marks
