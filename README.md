@@ -23,6 +23,10 @@ encoder: the best any remover can possibly do.
 | Clip | GWT 0.6.5 | cleanplate | Floor |
 |---|---|---|---|
 | Flower market (moving, textured) | 28.5 dB · sharpness 0.87 | **32.0 dB · 0.94** | 32.5 dB · 0.96 |
+| Night street (dark) | 33.5 dB | **39.9 dB** | 40.5 dB |
+| Snow (near-white; GWT skips the real clip) | 35.8 dB | **41.4 dB** | 45.5 dB |
+| Kitchen portrait, static wall | 31.8 dB | **36.2 dB** | 41.9 dB |
+| Gemini ✦ on flower market | not detected | **33.8 dB** | 34.2 dB |
 
 Full tables, more clips and the Gemini ✦ diamond: `docs/benchmark.md`.
 

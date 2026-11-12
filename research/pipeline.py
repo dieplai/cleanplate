@@ -26,7 +26,9 @@ ap.add_argument("--codec", default="auto")
 ap.add_argument("--K", type=int, default=8)
 ap.add_argument("--marks", default=os.path.join(os.path.dirname(__file__), "..", "assets", "marks"))
 ap.add_argument("--min-ncc", type=float, default=0.5)
-ap.add_argument("--lam", type=float, default=16.0, help="TV prior strength (0 = off)")
+ap.add_argument("--lam", type=float, default=-1.0,
+                help="TV prior strength; -1 = automatic per shot (16 for static/slow shots, 0 for moving ones)")
+ap.add_argument("--reach", action="store_true", help="research: far, sparse neighbours for slow motion (worse on GT)")
 ap.add_argument("--interp", default="cubic", choices=["cubic", "lanczos"], help="warp interpolation for luma candidates")
 ap.add_argument("--deghost", action="store_true",
                 help="research only: shape-basis static-ghost subtraction. OFF by default — it mistakes a real background/fill "
@@ -85,7 +87,9 @@ best = None
 for f in sorted(glob.glob(os.path.join(args.marks, "*", "*.png"))):
     A0 = cv2.imread(f, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
     ys, xs = np.where(A0 > 0); A0 = A0[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    for sc in (1.0, 1.5, 2.0, 0.75, 2 / 3, 1.25):
+    # only physically plausible scales: native, and the resolution ratio to the 720p reference (a 14x6 down-scaled
+    # template matched random texture on CLEAN clips at ncc~0.5 — never let a tiny template hunt freely)
+    for sc in sorted({1.0, round(min(W, H) / 720, 3)}):
         A = cv2.resize(A0, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA if sc < 1 else cv2.INTER_CUBIC) if sc != 1 else A0
         if A.shape[0] >= CH or A.shape[1] >= CW or min(A.shape) < 6: continue
         t = A - cv2.GaussianBlur(A, (0, 0), 3)
@@ -94,9 +98,20 @@ for f in sorted(glob.glob(os.path.join(args.marks, "*", "*.png"))):
         if best is None or sc_ > best[0]:
             best = (sc_, os.path.relpath(f, args.marks), sc, loc, A)
 ncc, mname, mscale, (mx, my), A = best
-log(f"detected {mname} x{mscale:.2f} at ({mx + cx0},{my + cy0}) ncc={ncc:.3f}")
-if ncc < args.min_ncc:
-    sys.exit(f"no mark found with confidence (best ncc {ncc:.2f} < {args.min_ncc}) — leaving the video untouched")
+# generators stamp marks at fixed placements; a match exactly there is far less likely to be chance, so a faint mark
+# (white text on a bright, busy background — real teacup clip scored 0.55) may pass a lower bar. (right, bottom) margins
+# in pixels at the template's native scale.
+KNOWN = {"veo-small-720p.png": [(16, 16)], "gemini-diamond-48.png": [(72, 72), (96, 96)],
+         "gemini-diamond-96.png": [(64, 64), (192, 192)], "gemini-diamond-36.png": [(32, 32)],
+         "veo-legacy-68.png": [(17, 18)]}
+mr, mb = CW - (mx + A.shape[1]), CH - (my + A.shape[0])
+at_known = any(abs(mr - r * mscale) <= 3 and abs(mb - b * mscale) <= 3 for r, b in KNOWN.get(os.path.basename(mname), []))
+# unknown placement needs a strong match; a known placement may be faint. Clean clips peaked at 0.48-0.52 elsewhere.
+floor_ = 0.45 if at_known else max(args.min_ncc, 0.75)   # weakest real mark seen: 0.55 (teacup)
+log(f"detected {mname} x{mscale:.2f} at ({mx + cx0},{my + cy0}) ncc={ncc:.3f}"
+    f"{' (known placement)' if at_known else ''}, threshold {floor_:.2f}")
+if ncc < floor_:
+    sys.exit(f"no mark found with confidence (best ncc {ncc:.2f} < {floor_:.2f}) — leaving the video untouched")
 th, tw = A.shape
 
 # working region: mark + context margin for motion estimation, even-aligned, inside the corner crop
@@ -105,7 +120,10 @@ rx0, ry0 = max(0, mx - MG) & ~1, max(0, my - MG) & ~1
 rx1, ry1 = min(CW, (mx + tw + MG + 1) & ~1), min(CH, (my + th + MG + 1) & ~1)
 RW, RH = rx1 - rx0, ry1 - ry0
 Ay = np.zeros((RH, RW), np.float32); Ay[my - ry0:my - ry0 + th, mx - rx0:mx - rx0 + tw] = np.clip(A, 0, 0.95)
-Ac = Ay.reshape(RH // 2, 2, RW // 2, 2).mean(axis=(1, 3))
+# chroma alpha with H.264's default 4:2:0 siting ("left": co-sited with even luma columns, centred vertically).
+# Probe on real Veo clips: 13-22% less mark-shaped chroma leftover than a centred 2x2 average.
+_h = cv2.filter2D(Ay, -1, np.array([[0.25, 0.5, 0.25]], np.float32), borderType=cv2.BORDER_REPLICATE)
+Ac = _h.reshape(RH // 2, 2, RW).mean(axis=1)[:, ::2]
 Ly = 235.0 if (color["color_range"] in (None, "tv", "unknown")) else 255.0   # white in the stored range
 Lc = 128.0
 
@@ -135,13 +153,16 @@ def tv_refine(mu, w, mask, lam, iters=300, eps=1.0):
     """MAP refinement: min sum w (I-mu)^2 + lam*TV_eps(I) over mask pixels (gradient descent).
     w = per-pixel data confidence; where only noisy inversions exist (high alpha, static) the edge-sparsity prior
     suppresses the codec's glyph-shaped edges, where clean candidates exist the data keeps real detail."""
-    I = mu.copy(); tau = 0.2 / (1 + lam)
+    I = mu.copy()
+    # per-pixel (Jacobi-preconditioned) step at the explicit-scheme stability bound: w reaches ~48 next to the mark in
+    # static shots (a single global step made lam=4 diverge there) while glyph pixels have w~0.1 and need big steps
+    tau = 0.9 / (2 * w + 8 * lam / eps)
     for _ in range(iters):
         gx = np.diff(I, axis=1, append=I[:, -1:]); gy = np.diff(I, axis=0, append=I[-1:, :])
         n = np.sqrt(gx ** 2 + gy ** 2 + eps ** 2)
         px, py = gx / n, gy / n
         div = px - np.roll(px, 1, axis=1) + py - np.roll(py, 1, axis=0)
-        I[mask] -= tau * (2 * w * (I - mu) - lam * div)[mask]
+        I[mask] -= (tau * (2 * w * (I - mu) - lam * div))[mask]
     return I
 
 def shape_basis(a):
@@ -166,15 +187,20 @@ for (s0, s1) in shots:
     # how much does the background move under the mark in this shot? (median ring flow, a few samples)
     probes = [(t, min(t + 2, s1 - 1)) for t in range(s0, s1 - 2, max(1, L_ // 6))][:6]
     motion = float(np.median([np.median(np.hypot(*flow(a, b)[ring].T)) for a, b in probes])) if probes else 0.0
-    if motion > 0.3:
-        # reach far enough that the scene slides fully out from under the mark: dense +-K, then every 3rd frame
+    if motion > 0.3 and args.reach:
+        # research flag: reach far enough that the scene slides fully out from under the mark (dense +-K, then every
+        # 3rd frame). Measured worse on ground truth (long-gap flow is unreliable), so off by default.
         reach = int(min(45, np.ceil(1.3 * max(tw, th) / motion)))
         offs = sorted(set(range(-args.K, args.K + 1)) | set(range(-reach, reach + 1, 3)))
         K = max(args.K, reach)
+    elif motion > 0.3:
+        K = args.K; offs = list(range(-K, K + 1))
     else:
         # static: nothing ever slides out; average many inversions (and let TV-MAP handle the codec ghost)
         K = min(3 * args.K, L_)
         offs = list(range(-K, K + 1))
+    # GT grid v4: TV-MAP wins on static/slow shots (<=0.8 px/frame), hurts textured moving ones (>=1.3 px/frame)
+    lam = args.lam if args.lam >= 0 else 16.0 * float(np.clip((1.2 - motion) / 0.6, 0, 1))
     clean_w = tot_w = 0.0
     for t in range(s0, s1):
         cy, cu, cv_, ws, cl = [Ry[t]], [Ru[t]], [Rv[t]], [(1 - Ay) ** 2], [Ay < 0.02]
@@ -187,7 +213,7 @@ for (s0, s1) in shots:
             fb = np.hypot(Fts[..., 0] + back[..., 0], Fts[..., 1] + back[..., 1])
             inb = (px >= 0) & (px <= RW - 1) & (py >= 0) & (py <= RH - 1)
             a_src = cv2.remap(Ay, px, py, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
-            w = (1 - a_src) ** 2 * np.exp(-(fb / 0.7) ** 2) * inb * np.exp(-abs(s - t) / (1.5 * K))
+            w = (1 - a_src) ** 2 * np.exp(-(fb / 0.7) ** 2) * inb * np.exp(-abs(s - t) / (2.0 * K))
             cy.append(cv2.remap(Ry[s], px, py, INTERP, borderMode=cv2.BORDER_REPLICATE))
             hx, hy = px[::2, ::2] / 2, py[::2, ::2] / 2
             cu.append(cv2.remap(Ru[s], hx, hy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE))
@@ -205,14 +231,14 @@ for (s0, s1) in shots:
         # per-pixel data confidence for the TV-MAP step:
         #   clean candidates are independent observations -> their weights ADD;
         #   inversions of a static point share one codec error -> together they count as ONE observation (1-a)^2
-        conf = (Wr * np.array(cl)).sum(0) + (1 - Ay) ** 2
-        Oy[t] = tv_refine(mu, conf, M, args.lam) if args.lam > 0 else np.where(M, mu, Oy[t])
+        conf = (Wr * np.array(cl)).sum(0) + 1.0 / (1.0 + 9.0 * (Ay / (1 - Ay)) ** 2)   # (sigma_codec/sigma_0)^2 = 9
+        Oy[t] = tv_refine(mu, conf, M, lam) if lam > 0 else np.where(M, mu, Oy[t])
         Wc, Mc = Wr[:, ::2, ::2], M[::2, ::2]
         confc = conf[::2, ::2]
         for O, cands in ((Ou, cu), (Ov, cv_)):
             Cc = np.array(cands)
             muc = (Wc * Cc).sum(0) / (Wc.sum(0) + 1e-6)
-            O[t] = tv_refine(muc, confc, Mc, args.lam) if args.lam > 0 else np.where(Mc, muc, O[t])
+            O[t] = tv_refine(muc, confc, Mc, lam) if lam > 0 else np.where(Mc, muc, O[t])
     share = clean_w / max(tot_w, 1e-6)
     # static leftover (codec ghost) — only matters when the shot relied on inversions, i.e. little clean data
     if share < 0.5 and L_ >= 8 and args.deghost:
@@ -223,7 +249,7 @@ for (s0, s1) in shots:
             c, *_ = np.linalg.lstsq(B, g[Mk], rcond=None)
             gs = np.zeros_like(g); gs[Mk] = B @ c
             O[s0:s1] -= (1 - share) * gs
-    log(f"shot {s0}-{s1}: motion={motion:.2f}px K={K} clean-share={share:.2f}")
+    log(f"shot {s0}-{s1}: motion={motion:.2f}px K={K} lambda={lam:.1f} clean-share={share:.2f}")
 
 # feathered paste mask (inside M: rebuilt, outside: untouched source)
 feather = np.clip(cv2.GaussianBlur(M.astype(np.float32), (0, 0), 1.0) * 1.5, 0, 1)

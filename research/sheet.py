@@ -8,7 +8,7 @@ def frame(path, t):
     p = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-vf", f"select=eq(n\\,{t})", "-frames:v", "1",
                         "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True).stdout
     f = cv2.imdecode(np.frombuffer(p, np.uint8), cv2.IMREAD_COLOR)
-    return f if ".crop." in path else f[-128:, -256:]
+    return f[-128:, -256:]   # crops are bottom-right aligned
 rows = []
 for c in clips:
     for t in (30, 96):
