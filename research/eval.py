@@ -7,16 +7,20 @@ def frames(p):
     while True:
         ok, f = c.read()
         if not ok: return np.array(out)
-        h, w = f.shape[:2]
-        out.append(f[h * 2 // 3:, w * 2 // 3:].copy())
+        # every mark we target sits in the bottom-right 256x128; '*.crop.mkv' outputs are already exactly that
+        out.append(f if ".crop." in p else f[-128:, -256:].copy())
 
-orig_p, outs = sys.argv[1], [a.split("=", 1) for a in sys.argv[2:]]
+orig_p, outs = sys.argv[1], [a.split("=", 1) for a in sys.argv[2:] if "=" in a]
+FIXED = "--fixed" in sys.argv  # known Veo-small box in the 256x128 corner crop (219,103,21,9); change-based bbox fails on faint marks
 O = frames(orig_p).astype(np.float32); H, W = O.shape[1:3]  # H, W are crop dims from here on
 C = {n: frames(p)[:len(O)].astype(np.float32) for n, p in outs}
 # watermark bbox = where any tool changed pixels on average (re-encode noise is small, logo change is large)
 chg = sum(np.abs(O[:len(v)] - v).mean((0, 3)) for v in C.values())
-ys, xs = np.where(chg > chg.max() * 0.3)
-y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+if FIXED:
+    x0, y0, x1, y1 = 219, 103, 240, 112
+else:
+    ys, xs = np.where(chg > chg.max() * 0.3)
+    y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
 print(f"{W}x{H} frames={len(O)} watermark bbox x={x0} y={y0} w={x1-x0} h={y1-y0}")
 pad = 24
 Y0, Y1, X0, X1 = max(0, y0 - pad), min(H, y1 + pad), max(0, x0 - pad), min(W, x1 + pad)

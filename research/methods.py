@@ -93,6 +93,38 @@ def planes(f):
     return (f[:W * H].reshape(H, W), f[W * H:W * H * 5 // 4].reshape(H // 2, W // 2), f[W * H * 5 // 4:].reshape(H // 2, W // 2))
 
 SL = [(slice(Y0, Y0 + bh), slice(X0, X0 + bw))] + [(slice(Y0 // 2, Y0 // 2 + bh // 2), slice(X0 // 2, X0 // 2 + bw // 2))] * 2
+
+if "--gain" in sys.argv and MODE != "rgb":
+    # per-video mark strength g (alpha = g*A). Model per luma pixel: J_t = (1-gA) I_t + k(p).
+    # With I_hat_t the ring-interpolated background, y_t = J_t - I_hat_t ~ -gA*I_hat_t + const(p).
+    # De-meaning over time removes every STATIC bias (interpolation bias, codec ghost, L) -> only the
+    # background's variation under the mark identifies g. Static scenes carry no information -> keep g=1.
+    Jl = np.array([planes(f)[0][SL[0]].astype(np.float32) for f in frames("yuv420p")])
+    hole = cv2.dilate((Afull > 0.01).astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    Ih = np.array([harmonic(j, hole) for j in Jl])
+    y = (Jl - Ih) - (Jl - Ih).mean(0); x = -(Afull * (Ih - Ih.mean(0)))
+    m = Afull > 0.15
+    # errors-in-variables: I_hat's error leaks into the regressor and biases g toward 0 on textured clips
+    # (synthetic flower gave 0.65 for truth 1.0). Trust only frames whose surrounding ring is smooth,
+    # where the interpolated background is accurate.
+    ring = cv2.dilate(hole.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool) & ~hole
+    tex = np.array([np.std((j - cv2.GaussianBlur(j, (0, 0), 1.5))[ring]) for j in Jl])
+    wf = (1.0 / (1.0 + (tex / (np.percentile(tex, 20) + 0.3)) ** 4))[:, None, None]
+    w = np.ones_like(y)
+    for _ in range(5):  # IRLS on top: pixels where the ring guess fails (an edge crossing the mark) get down-weighted
+        ww = w * wf
+        g = (ww * x * y)[:, m].sum() / ((ww * x * x)[:, m].sum() + 1e-6)
+        r = y - g * x; s = np.median(np.abs(r[:, m])) * 1.4826 + 0.5
+        w = np.minimum(1.0, 1.5 * s / (np.abs(r) + 1e-6))
+    x = x * np.sqrt(wf)
+    info = float((x[:, m] ** 2).mean())           # how much the background under the mark varied
+    conf = info / (info + 4.0)
+    g_used = float(np.clip(conf * g + (1 - conf) * 1.0, 0.6, 1.4))
+    print(f"gain fit g={g:.3f} info={info:.2f} conf={conf:.2f} -> using g={g_used:.3f}")
+    Afull = np.clip(Afull * g_used, 0, 0.95)
+    Ac = Afull.reshape(bh // 2, 2, bw // 2, 2).mean(axis=(1, 3))
+    del Jl, Ih, y, x, w
+
 AL = [(Afull, 235.0), (Ac, 128.0), (Ac, 128.0)]
 
 ghost = None
