@@ -29,6 +29,10 @@ ap.add_argument("--min-ncc", type=float, default=0.5)
 ap.add_argument("--lam", type=float, default=-1.0,
                 help="TV prior strength; -1 = automatic per shot (16 for static/slow shots, 0 for moving ones)")
 ap.add_argument("--reach", action="store_true", help="research: far, sparse neighbours for slow motion (worse on GT)")
+ap.add_argument("--no-edge-tv", dest="edge_tv", action="store_false",
+                help="disable the TV prior on the mark's edge ring where no clean evidence landed (on by default: removes the "
+                     "hairline outline in fast motion; costs <=0.25 dB on slow textured GT clips)")
+ap.add_argument("--chroma-siting", default="left", choices=["left", "center"])
 ap.add_argument("--interp", default="cubic", choices=["cubic", "lanczos"], help="warp interpolation for luma candidates")
 ap.add_argument("--deghost", action="store_true",
                 help="research only: shape-basis static-ghost subtraction. OFF by default — it mistakes a real background/fill "
@@ -123,7 +127,7 @@ Ay = np.zeros((RH, RW), np.float32); Ay[my - ry0:my - ry0 + th, mx - rx0:mx - rx
 # chroma alpha with H.264's default 4:2:0 siting ("left": co-sited with even luma columns, centred vertically).
 # Probe on real Veo clips: 13-22% less mark-shaped chroma leftover than a centred 2x2 average.
 _h = cv2.filter2D(Ay, -1, np.array([[0.25, 0.5, 0.25]], np.float32), borderType=cv2.BORDER_REPLICATE)
-Ac = _h.reshape(RH // 2, 2, RW).mean(axis=1)[:, ::2]
+Ac = _h.reshape(RH // 2, 2, RW).mean(axis=1)[:, ::2] if args.chroma_siting == "left" else Ay.reshape(RH // 2, 2, RW // 2, 2).mean(axis=(1, 3))
 Ly = 235.0 if (color["color_range"] in (None, "tv", "unknown")) else 255.0   # white in the stored range
 Lc = 128.0
 
@@ -178,6 +182,8 @@ def flow(a, b):
         F[..., k][FW] = harmonic(F[..., k][FW], Mflow_w)
     return F
 
+_ga = np.hypot(cv2.Sobel(Ay, cv2.CV_32F, 1, 0), cv2.Sobel(Ay, cv2.CV_32F, 0, 1))
+EDGE = cv2.dilate((_ga > 0.25 * _ga.max()).astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
 INTERP = cv2.INTER_LANCZOS4 if args.interp == "lanczos" else cv2.INTER_CUBIC
 gy, gx = np.mgrid[0:RH, 0:RW].astype(np.float32)
 Oy, Ou, Ov = Ry.copy(), Ru.copy(), Rv.copy()
@@ -222,6 +228,15 @@ for (s0, s1) in shots:
             core = Ay > 0.05   # count only pixels that actually carry the mark
             clean_w += float(((a_src < 0.02) * w)[core].sum()); tot_w += float(w[core].sum())
         C, Wt = np.array(cy), np.array(ws)
+        # anchor: a candidate must agree with THIS frame's own inversion (noisy, but the right content at the right
+        # place) within ~3 sigma of that inversion's known noise. Rejects wrong-place pixels that a failed flow
+        # imports consistently in both directions (yellow dots from a yellow stripe, cartoon at 20 px/frame).
+        # tolerance must exceed the own inversion's STATIC codec error (~20 levels at a=0.5 — a tight anchor pulled the
+        # result back onto it: ghost 2.9 -> 15.9 on the flower GT), yet stay far below wrong-place content (~80 levels).
+        # Quartic fall-off: flat inside the tolerance, steep outside.
+        tol_y = 25.0 + 25.0 * Ay / (1 - Ay)   # a gross-outlier veto, not a pull toward the noisy own inversion
+        anc = np.exp(-((C - Ry[t]) / tol_y) ** 4); anc[0] = 1.0
+        Wt = Wt * anc
         mu = (Wt * C).sum(0) / (Wt.sum(0) + 1e-6)
         Wr = Wt
         for _ in range(2):
@@ -230,14 +245,26 @@ for (s0, s1) in shots:
             mu = (Wr * C).sum(0) / (Wr.sum(0) + 1e-6)
         # per-pixel data confidence for the TV-MAP step:
         #   clean candidates are independent observations -> their weights ADD;
-        #   inversions of a static point share one codec error -> together they count as ONE observation (1-a)^2
+        #   inversions of a static point share one codec error -> together they count as ONE observation
         conf = (Wr * np.array(cl)).sum(0) + 1.0 / (1.0 + 9.0 * (Ay / (1 - Ay)) ** 2)   # (sigma_codec/sigma_0)^2 = 9
-        Oy[t] = tv_refine(mu, conf, M, lam) if lam > 0 else np.where(M, mu, Oy[t])
-        Wc, Mc = Wr[:, ::2, ::2], M[::2, ::2]
-        confc = conf[::2, ::2]
-        for O, cands in ((Ou, cu), (Ov, cv_)):
+        lam_px = lam
+        if args.edge_tv:
+            # thin ring along the mark's edges, only where no clean observation landed (fast motion): the codec smears
+            # the overlay's edge each frame differently, leaving a hairline outline after inversion
+            clean_sum = (Wr * np.array(cl)).sum(0) - (Ay < 0.02) * Wr[0]
+            lam_px = np.maximum(lam, 16.0 * (EDGE & (clean_sum < 0.5))).astype(np.float32)
+        Oy[t] = tv_refine(mu, conf, M, lam_px) if np.max(lam_px) > 0 else np.where(M, mu, Oy[t])
+        # chroma: same geometry weights, but its OWN anchor and robust step (colour errors are invisible to luma)
+        Wg, Mc, confc = Wt[:, ::2, ::2], M[::2, ::2], conf[::2, ::2]
+        tol_c = 20.0 + 20.0 * Ac / (1 - Ac)
+        for O, cands, Rc in ((Ou, cu, Ru), (Ov, cv_, Rv)):
             Cc = np.array(cands)
+            Wc = Wg * np.exp(-((Cc - Rc[t]) / tol_c) ** 4); Wc[0] = Wg[0]
             muc = (Wc * Cc).sum(0) / (Wc.sum(0) + 1e-6)
+            for _ in range(2):
+                dev = np.abs(Cc - muc); sc = np.median(dev, 0) * 1.4826 + 1.5
+                Wcr = Wc * np.minimum(1.0, 1.5 * sc / (dev + 1e-6))
+                muc = (Wcr * Cc).sum(0) / (Wcr.sum(0) + 1e-6)
             O[t] = tv_refine(muc, confc, Mc, lam) if lam > 0 else np.where(Mc, muc, O[t])
     share = clean_w / max(tot_w, 1e-6)
     # static leftover (codec ghost) — only matters when the shot relied on inversions, i.e. little clean data

@@ -36,8 +36,9 @@ the video's own.
 | Shots | Hard-cut detection on per-frame thumbnails | Never borrow pixels across a cut |
 | Invert (native YUV) | `R_t = (J_t − aL)/(1 − a)` per plane; chroma uses the 2×2-averaged alpha and `L = 128` | Avoids a lossy RGB round trip; the 4:2:0 chroma sees a blurred mark |
 | Gather | For each neighbour `s` within the shot: DIS flow `t→s` (re-filled inside the mark from its surroundings), forward/backward consistency check, warp `R_s` | Collect every observation of the same scene point |
-| Weigh | Clean candidates (landing outside the mark) ≈ weight 1; inversions `(1 − a_src)²` (inverse noise variance); × flow confidence × temporal decay; robust re-weighting | Inverse-variance fusion: the cleanest evidence wins per pixel |
-| Refine | Weighted-TV MAP: `min Σ w (I − μ)² + λ TV(I)` with `w` = per-pixel evidence strength | Where only corrupted evidence exists (static shot, strong alpha) the edge-sparsity prior removes the glyph-shaped codec ghost; elsewhere the data keeps real detail |
+| Weigh | Clean candidates (landing outside the mark) ≈ weight 1; inversions `(1 − a_src)²` (inverse noise variance); × flow confidence × temporal decay | Inverse-variance fusion: the cleanest evidence wins per pixel |
+| Veto | Each candidate must agree with this frame's own inversion within a gross-outlier tolerance (25 + 25·a/(1−a) luma, 20 + 20·a/(1−a) chroma; quartic fall-off); luma and each chroma plane are vetoed and robust-reweighted **separately** | A failed flow can import wrong-place content consistently in both directions (yellow dots from a yellow stripe at 20 px/frame); the tolerance sits above the codec's own error (~20–40) and below wrong content (~80) |
+| Refine | Weighted-TV MAP: `min Σ w (I − μ)² + λ TV(I)`, `w` = clean evidence (adds) + one inversion-equivalent `1/(1 + 9·(a/(1−a))²)`; λ per shot = 16 on static/slow shots → 0 on moving ones; plus λ = 16 on the mark's thin edge ring wherever no clean observation landed | Static shots: the edge-sparsity prior removes the glyph-shaped codec ghost. Moving shots: real detail is kept. Fast motion: removes the hairline outline the codec leaves on the mark's edge |
 | Paste & encode | Feathered paste into the untouched frame; audio and colour tags copied; ProRes / AV1 / H.264 / FFV1 | Everything outside the mark is the source |
 
 ## 4. Evidence
