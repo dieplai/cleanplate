@@ -131,3 +131,11 @@ weighted-TV step whose strength follows the texture around the mark (brick wants
 Detection is scale-free (generator margins are 2/3× or 2× the mark size). The 9 clean versions are all refused.
 Gemini has shipped the same diamond at alpha 0.30 ("V2") and 0.50 ("V1", this image); a fixed-opacity template
 under-removes one of them — the reason opacity is measured, not assumed.
+
+### Real Flow (Nano Banana 2.1) stills
+
+Four Flow images (1024², 1376×768, 1200×896, 768×1376) carry a fainter diamond: 48 px at a margin of 73–78 px
+(≈1.6× the size, a placement neither GWT nor wmr knows) and opacity 0.28–0.30 (measured by cleanplate).
+cleanplate: 4/4 removed, no visible residue in the 4× high-pass view. GWT: 2/4 skipped; on the fruit image it reported
+OK but edited the wrong spot (the diamond stays, a dark arc is added); on the cat image a diamond outline remains.
+wmr: 0/4 detected. Sheet: `out/img_flow/cmp.png`.

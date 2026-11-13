@@ -45,6 +45,9 @@ CS = min(H, W, max(320, min(H, W) // 3))
 cx0, cy0 = W - CS, H - CS
 g = cv2.cvtColor(J[cy0:, cx0:], cv2.COLOR_BGR2GRAY)
 hp = g - cv2.GaussianBlur(g, (0, 0), 3)
+# margin / mark size at which generators stamp: Gemini stills 2/3, Gemini video 2, Flow (Nano Banana) stills ~1.6
+# (48 px at 73-78 px on 1024x1024, 1376x768, 1200x896, 768x1376)
+PLACE = (2 / 3, 1.6, 2.0)
 best = None
 for name, S in shapes.items():
     for size in range(24, min(200, CS // 2), 2):
@@ -53,11 +56,11 @@ for name, S in shapes.items():
         r = cv2.matchTemplate(hp, t, cv2.TM_CCOEFF_NORMED)
         _, sc, _, (mx, my) = cv2.minMaxLoc(r)
         mr, mb = CS - mx - size, CS - my - size
-        known = any(abs(mr - k * size) <= 3 and abs(mb - k * size) <= 3 for k in (2 / 3, 2.0))
+        known = any(abs(mr - k * size) <= max(3, 0.1 * size) and abs(mb - k * size) <= max(3, 0.1 * size) for k in PLACE)
         key = sc + (0.15 if known else 0)          # prefer the generator's placement among near-equal peaks
         if best is None or key > best[0]:
             best = (key, sc, name, size, mx + cx0, my + cy0, known)
-        for k in (2 / 3, 2.0):                      # the global peak can miss a faint mark: probe the placements
+        for k in PLACE:                             # the global peak can miss a faint mark: probe the placements
             px, py = CS - size - round(k * size), CS - size - round(k * size)
             if 0 <= px < r.shape[1] and 0 <= py < r.shape[0]:
                 v = float(r[py - 1:py + 2, px - 1:px + 2].max()) if py > 0 and px > 0 else float(r[py, px])
