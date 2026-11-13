@@ -282,7 +282,7 @@ a.btn { text-decoration: none; }
 
 /* ══ v2: batch workspace ══ */
 .container.wide { max-width: 1120px; }
-.brand-badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-primary); background: rgba(20, 184, 166, 0.12); padding: 0.2rem 0.5rem; border-radius: 999px; }
+.brand-badge { white-space: nowrap; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-primary); background: rgba(20, 184, 166, 0.12); padding: 0.2rem 0.5rem; border-radius: 999px; }
 .hero-section.compact { margin: 1.25rem auto 1.75rem; }
 .hero-section.compact .hero-title { font-size: 2.6rem; }
 .workspace { padding: 1.25rem; min-height: 280px; transition: box-shadow var(--t), border-color var(--t); }
