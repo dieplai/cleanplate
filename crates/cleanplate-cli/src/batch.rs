@@ -170,18 +170,16 @@ pub fn run(
     results.into_inner().unwrap().into_iter().flatten().collect()
 }
 
-/// Files in flight by default: the work inside one file already uses every core, so a second file mainly overlaps
-/// ffmpeg's decoding and encoding with computation. Bounded by memory: ~1 GB per video job on a 1080p clip.
+/// Files in flight by default. One file already uses every core, so a second one mainly overlaps ffmpeg's decoding
+/// and encoding with computation. Measured on 17 Veo/Gemini clips, 12 cores, MP4 out: 1 file at a time 245 s, 2 at a
+/// time 198 s, 3 at a time 193 s, peak memory ~2.4 GB for the heaviest single clip. So: 2 on 8+ cores, bounded by
+/// available memory at ~2.5 GB per file in flight.
 pub fn auto_workers(jobs: &[Job], cores: usize, ram_gb: Option<f64>) -> usize {
-    let by_cores = (cores / 4).clamp(1, 4);
-    let by_ram = ram_gb.map_or(by_cores, |g| ((g / 2.0) as usize).max(1));
-    let videos = jobs.iter().filter(|j| j.video).count();
-    let w = by_cores.min(by_ram);
-    if videos == 0 {
-        w.max(2).min(by_ram.max(1)) // stills: short, overlapping reads and writes helps more
-    } else {
-        w
-    }
+    let by_cores = if cores >= 8 { 2 } else { 1 };
+    let by_ram = ram_gb.map_or(by_cores, |g| ((g / 2.5) as usize).max(1));
+    let stills_only = jobs.iter().all(|j| !j.video);
+    let w = if stills_only { 2 } else { by_cores };
+    w.min(by_ram).max(1)
 }
 
 /// Machine-readable record of a run, written next to the outputs.
