@@ -19,7 +19,8 @@ onmessage = async ({ data: { rgb, w, h, lossy } }) => {
     const log = new TextDecoder().decode(new Uint8Array(e.memory.buffer, r + 12, ll).slice());
     const out = new Uint8Array(e.memory.buffer, r + 12 + ll, rl).slice();
     e.cp_free(r, 12 + ll + rl);
-    postMessage({ status, log, rgb: out }, [out.buffer]);
+    const memMB = Math.round(e.memory.buffer.byteLength / 2 ** 20);
+    postMessage({ status, log: `${log}\nwasm memory ${memMB} MB`, rgb: out, memMB }, [out.buffer]);
   } catch (err) {
     ready = loadCleanplate(single); // a trap can leave the instance in a bad state
     postMessage({ error: String(err) });

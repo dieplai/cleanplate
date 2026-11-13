@@ -54,6 +54,9 @@ function aacDescription(f, track) {
 }
 
 const QP = 14; // H.264 QP for the quantizer mode: visually lossless
+/** Peak memory of a job in MB: measured 311 MB for 190 frames, 440 MB for 765 (1080p), 725 MB for 1530 (720p),
+ * plus the input file and the encoded output (~3x the input) held in memory. */
+const videoNeedMB = (frames, inputBytes) => Math.round(350 + 0.35 * frames + (4 * inputBytes) / 2 ** 20);
 const us = (v, ts) => Math.round((1e6 * v) / ts);
 
 /** Decode every sample in presentation order, awaiting `onFrame(frame)` for each (the callee closes it). */
@@ -99,7 +102,7 @@ async function toI420(fr, dst, w, h) {
   }
 }
 
-onmessage = async ({ data: { buf } }) => {
+onmessage = async ({ data: { buf, budgetMB } }) => {
   let vid = 0, e = null;
   try {
     e = (await wasm).exports;
@@ -117,6 +120,9 @@ onmessage = async ({ data: { buf } }) => {
     };
     if (!(await VideoDecoder.isConfigSupported(cfg)).supported) throw new Error(`this browser cannot decode ${vt.codec}`);
     const n = vs.length;
+    // refuse before the work rather than let the tab run out of memory (see videoNeedMB)
+    const needMB = videoNeedMB(n, buf.byteLength);
+    if (budgetMB && needMB > budgetMB) return postMessage({ tooBig: needMB });
     const secs = vt.duration / vt.timescale || vs.reduce((a, s) => a + s.duration, 0) / vt.timescale;
     let w = 0, h = 0, frameBuf = null, ptr = 0, fullRange = false;
 
@@ -165,7 +171,8 @@ onmessage = async ({ data: { buf } }) => {
     const target = new Mp4Muxer.ArrayBufferTarget();
     const muxer = new Mp4Muxer.Muxer({
       target,
-      video: { codec: 'avc', width: w, height: h, frameRate: fps },
+      // no frameRate: mp4-muxer only takes an integer there, and 23.976 fps sources are common; timestamps carry it
+      video: { codec: 'avc', width: w, height: h },
       audio: aacDesc ? { codec: 'aac', numberOfChannels: at.audio.channel_count, sampleRate: at.audio.sample_rate } : undefined,
       fastStart: 'in-memory',
       firstTimestampBehavior: 'offset',
@@ -204,7 +211,7 @@ onmessage = async ({ data: { buf } }) => {
     }
     muxer.finalize();
     const mp4 = target.buffer;
-    postMessage({ done: true, mp4, log: res.log + `\nencoded H.264 ${useQ ? `QP ${QP}` : `${(encCfg.bitrate / 1e6).toFixed(1)} Mbit/s`}, ${t} frames` + note }, [mp4]);
+    postMessage({ done: true, mp4, log: res.log + `\nencoded H.264 ${useQ ? `QP ${QP}` : `${(encCfg.bitrate / 1e6).toFixed(1)} Mbit/s`}, ${t} frames` + note + `\nwasm memory ${(e.memory.buffer.byteLength / 2 ** 20).toFixed(0)} MB, input ${(buf.byteLength / 2 ** 20).toFixed(1)} MB, output ${(mp4.byteLength / 2 ** 20).toFixed(1)} MB` }, [mp4]);
   } catch (err) {
     postMessage({ error: err?.message || String(err) });
   }

@@ -21,6 +21,12 @@ function startImageWorker(single) {
 startImageWorker(false);
 // a few cores in the browser lose to the server once upload time is counted; many cores win
 const preferServer = () => SERVER && THREADS < 6;
+// Memory the in-browser engine may use here (MB): 40% of the RAM the browser reports, 1–3 GB. WebAssembly can address
+// 4 GB, but phones close a tab long before that. Bigger jobs go to the server, or are refused with a clear message.
+const BUDGET_MB = Math.round(Math.min(3000, Math.max(1000, (navigator.deviceMemory || 4) * 1024 * 0.4)));
+// measured with 12 threads: 4.3 MP -> 273 MB, 17 MP -> 1067 MB
+const imageNeedMB = (w, h) => Math.round(150 + 62e-6 * w * h);
+const SERVER_MAX_MB = 95;
 const views = ['dropzone', 'busy', 'refused', 'result'];
 let cur = null; // { name, w, h, src: ImageData }
 let timer = 0;
@@ -57,6 +63,7 @@ function serverClean(file, onUpload) {
       let j = {};
       try { j = JSON.parse(await x.response.text()); } catch { /* not JSON (proxy error page) */ }
       if (x.status === 422) resolve({ status: 2, log: j.log || '' });
+      else if (x.status === 429) reject(new Error('too many files from your connection; wait a minute and try again'));
       else reject(new Error(j.error || `server answered ${x.status}`));
     };
     x.onerror = () => reject(new Error('network error'));
@@ -116,6 +123,11 @@ async function handle(file) {
   $('busy-name').textContent = file.name;
   show('busy');
   timer = setInterval(() => ($('busy-time').textContent = ((performance.now() - cur.t0) / 1000).toFixed(1)), 100);
+  const need = imageNeedMB(w, h);
+  if (need > BUDGET_MB) {
+    if (SERVER && file.size <= SERVER_MAX_MB * 2 ** 20) return serverImage(file);
+    return fail(`This ${((w * h) / 1e6).toFixed(0)} MP image needs about ${need} MB, more than this browser can safely use here (${BUDGET_MB} MB). Use the command-line tool for it.`);
+  }
   if (preferServer()) return serverImage(file);
   pendingImage = { rgb, w, h, lossy: file.type !== 'image/png' };
   worker.postMessage(pendingImage);
@@ -123,6 +135,11 @@ async function handle(file) {
 
 function onImageResult(data) {
   pendingImage = null;
+  // wasm memory never shrinks: after a big image, start a fresh worker so the tab gives the memory back
+  if (data.memMB > 600) {
+    worker.terminate();
+    startImageWorker(false);
+  }
   clearInterval(timer);
   const secs = ((performance.now() - cur.t0) / 1000).toFixed(1);
   if (data.error) return fail(`cleanplate crashed on this image (${data.error}). Please report it.`);
@@ -293,6 +310,10 @@ async function vHandle(file) {
       if (d.loaded) {
         loaded = true;
         job.threads = d.loaded;
+      } else if (d.tooBig) {
+        worker.terminate();
+        if (SERVER && file.size <= SERVER_MAX_MB * 2 ** 20) return vServer(file);
+        vFail(`This clip needs about ${d.tooBig} MB, more than this browser can safely use here (${BUDGET_MB} MB). Use the command-line tool, or trim it into shorter parts.`);
       } else if (d.progress) {
         $('v-stage').textContent = d.progress;
         $('v-bar').style.width = `${(100 * d.frac).toFixed(1)}%`;
@@ -311,7 +332,7 @@ async function vHandle(file) {
         worker.terminate();
         start(true);
       }, 10000);
-    file.arrayBuffer().then((buf) => worker.postMessage({ buf }, [buf]));
+    file.arrayBuffer().then((buf) => worker.postMessage({ buf, budgetMB: BUDGET_MB }, [buf]));
   };
   start(false);
 }

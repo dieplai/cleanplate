@@ -74,7 +74,9 @@ async function loadMultiThreaded() {
   const bytes = await (await fetch('cleanplate-mt.wasm')).arrayBuffer();
   const module = await WebAssembly.compile(bytes);
   const memory = new WebAssembly.Memory({ initial: importedMemoryMin(bytes), maximum: 65536, shared: true });
-  const n = Math.max(2, Math.min(16, navigator.hardwareConcurrency || 4));
+  // threads: every core, but at most 2 per GB of RAM (each thread holds its own buffers while it works)
+  const ram = navigator.deviceMemory || 8;
+  const n = Math.max(2, Math.min(16, navigator.hardwareConcurrency || 4, ram * 2));
   // Thread workers are started, given the module and memory, and instantiated *before* any wasm runs: rayon blocks
   // this thread inside cp_threads until its threads are up, and while it is blocked Chrome neither starts a new
   // worker nor completes the first transfer of a module, so thread-spawn may only send two numbers.
