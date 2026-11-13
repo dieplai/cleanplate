@@ -51,7 +51,7 @@ fn detect_refuses_clean() {
     let refs: Vec<&Plane> = c.iter().collect();
     let r = detect_video(&refs, 1280, 720, 0.5).expect_err("clean clip must be refused");
     assert_eq!(r.floor, 0.75);
-    assert!((r.best_ncc - want("clean")[2]).abs() <= 0.01);
+    assert!((r.value - want("clean")[2]).abs() <= 0.01);
 }
 
 #[test]

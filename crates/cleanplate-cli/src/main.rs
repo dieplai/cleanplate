@@ -11,10 +11,12 @@ use std::path::PathBuf;
 struct Args {
     /// Input video or still (.png .jpg .webp); as downloaded — native resolution gives the best result
     input: PathBuf,
-    /// Output file (.mov defaults to ProRes 422 HQ)
+    /// Output file. Video: .mp4 (H.264 / AV1), .mov (ProRes 422 HQ), .mkv (lossless FFV1). Still: .png (lossless,
+    /// recommended), .jpg (q95), .webp (lossless)
     output: PathBuf,
-    /// auto | prores | av1 | h264 | ffv1
-    #[arg(long, default_value = "auto")]
+    /// Video encoder. auto picks from the output extension and what your ffmpeg offers: h264x = libx264 CRF 12,
+    /// av1 = SVT-AV1 CRF 14 10-bit, h264 = OpenH264, prores = ProRes 422 HQ, ffv1 = lossless
+    #[arg(long, default_value = "auto", value_parser = ["auto", "h264x", "av1", "h264", "prores", "ffv1"])]
     codec: String,
     /// Temporal half-window (frames) on moving shots; static shots use 3×
     #[arg(long, default_value_t = 8)]
@@ -40,13 +42,34 @@ struct Args {
 }
 
 fn main() -> Result<()> {
-    let a = Args::parse();
+    // usage errors exit 1: exit code 2 means "no mark found, nothing written"
+    let a = Args::try_parse().unwrap_or_else(|e| {
+        let _ = e.print();
+        std::process::exit(if e.use_stderr() { 1 } else { 0 })
+    });
     if let Some(t) = a.threads {
         rayon::ThreadPoolBuilder::new()
             .num_threads(t)
             .build_global()?;
     }
     if cleanplate_cli::still_io::is_still(&a.input) {
+        let video_only = [
+            ("--codec", a.codec != "auto"),
+            ("--k", a.k != 8),
+            ("--min-ncc", a.min_ncc != 0.5),
+            ("--no-edge-tv", a.no_edge_tv),
+            ("--opaque", a.opaque != -1),
+            ("--guide", a.guide.is_some()),
+        ];
+        for (flag, _) in video_only.iter().filter(|(_, set)| *set) {
+            eprintln!("note: {flag} applies to video only and is ignored for stills");
+        }
+        if !cleanplate_cli::still_io::is_still(&a.output) {
+            anyhow::bail!(
+                "a still must be written as .png, .jpg or .webp, not {}",
+                a.output.display()
+            );
+        }
         std::process::exit(cleanplate_cli::still_io::run(&a.input, &a.output, a.lam)?);
     }
     let params = Params {

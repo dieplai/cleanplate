@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased — research preview
+## 0.1.0 — 2026-11-13
+
+First public release: prebuilt binaries for Windows (x64), macOS (universal) and Linux (x86_64), and a browser page.
+
+### Browser
+- `web/` + `crates/cleanplate-wasm`: the Rust core as WebAssembly; images bit-identical to the CLI, video through
+  WebCodecs (H.264 out, AAC audio copied). Published at https://dieplai.github.io/cleanplate/.
+
+### CLI robustness
+- Clear refusals instead of panics for tiny stills (< 64 px) and videos (< 240 px; a 64×64 pattern used to match an
+  8 px ✦) and for videos with no decodable frame; the refusal says why (confidence, opacity or size).
+- `--codec` is validated; `auto` picks from the output extension and the encoders this ffmpeg offers (libx264 →
+  SVT-AV1 → OpenH264), and fails fast when none fits. Missing ffmpeg gives an install hint for the OS.
+- Rotated (phone) videos are read at their upright size; image format detected from content; 16-bit inputs noted;
+  video-only flags on stills are reported; usage errors exit 1 (2 stays "no mark, nothing written").
+- Windows binary links the C runtime statically. CI runs the full suite on Linux, Windows and macOS with ffmpeg.
+
+## Research preview
 
 ### Video
 - Flow-guided temporal reconstruction in native YUV with H.264 chroma siting; gross-outlier veto per plane;

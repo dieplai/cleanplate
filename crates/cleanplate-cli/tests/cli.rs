@@ -298,3 +298,142 @@ fn video_failed_encode_leaves_no_output() {
     assert!(!o.status.success(), "a failed encode must be an error");
     assert!(!out.exists(), "no partial output may be left behind");
 }
+
+fn run_cli(args: &[&std::ffi::OsStr]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_cleanplate"))
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn still_too_small_is_refused_without_panic() {
+    let (inp, out) = (tmp("tiny.png"), tmp("tiny_out.png"));
+    image::RgbImage::from_pixel(40, 40, image::Rgb([90, 120, 200]))
+        .save(&inp)
+        .unwrap();
+    let o = run_cli(&[inp.as_os_str(), out.as_os_str()]);
+    assert_eq!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(String::from_utf8_lossy(&o.stdout).contains("too small"));
+    assert!(!out.exists());
+}
+
+#[test]
+fn video_too_small_is_refused_without_false_positive() {
+    if !have_ffmpeg() {
+        return;
+    }
+    // a 64×64 test pattern used to "match" an 8 px diamond and get rewritten
+    let (inp, out) = (tmp("v64.mkv"), tmp("v64_out.mkv"));
+    let st = Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x64:rate=24:duration=1",
+        ])
+        .args(["-pix_fmt", "yuv420p", "-c:v", "ffv1"])
+        .arg(&inp)
+        .status()
+        .unwrap();
+    assert!(st.success());
+    let o = run_cli(&[inp.as_os_str(), out.as_os_str()]);
+    assert_eq!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stdout)
+    );
+    assert!(String::from_utf8_lossy(&o.stdout).contains("too small"));
+    assert!(!out.exists());
+}
+
+#[test]
+fn usage_errors_exit_1_not_the_refusal_code() {
+    let o = run_cli(&[
+        "a.mp4".as_ref(),
+        "b.mp4".as_ref(),
+        "--codec".as_ref(),
+        "x265".as_ref(),
+    ]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("x265"));
+}
+
+#[test]
+fn missing_ffmpeg_gives_an_install_hint() {
+    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate"))
+        .args(["clip.mp4", "out.mp4"])
+        .env("PATH", "")
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    let e = String::from_utf8_lossy(&o.stderr);
+    assert!(
+        e.contains("not found on PATH") && e.contains("install"),
+        "{e}"
+    );
+}
+
+#[test]
+fn jpeg_content_with_png_extension_is_read() {
+    let (inp, out) = (tmp("really_jpeg.png"), tmp("really_jpeg_out.png"));
+    let img = image::RgbImage::from_fn(300, 200, |x, y| {
+        image::Rgb([(x % 256) as u8, (y % 256) as u8, 128])
+    });
+    image::DynamicImage::ImageRgb8(img)
+        .save_with_format(&inp, image::ImageFormat::Jpeg)
+        .unwrap();
+    let o = run_cli(&[inp.as_os_str(), out.as_os_str()]);
+    // no mark in it: refused (2), but read rather than failing to decode (1)
+    assert_eq!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+}
+
+#[test]
+fn rotated_video_is_probed_upright() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let (plain, rot, out) = (tmp("rot_src.mkv"), tmp("rot.mp4"), tmp("rot_out.mkv"));
+    make_clip(&plain, true);
+    let st = Command::new("ffmpeg")
+        .args(["-v", "error", "-y", "-display_rotation:v:0", "90", "-i"])
+        .arg(&plain)
+        .args(["-c:v", "libsvtav1", "-preset", "12"])
+        .arg(&rot)
+        .status()
+        .unwrap();
+    if !st.success() {
+        return; // this ffmpeg cannot write the rotation tag
+    }
+    let o = run_cli(&[
+        rot.as_os_str(),
+        out.as_os_str(),
+        "--codec".as_ref(),
+        "ffv1".as_ref(),
+    ]);
+    let s = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        s.contains("360x640"),
+        "frames must be read at their upright size: {s}"
+    );
+    assert_ne!(
+        o.status.code(),
+        Some(1),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+}

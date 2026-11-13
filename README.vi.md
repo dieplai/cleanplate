@@ -2,154 +2,211 @@
 
 # cleanplate
 
-### Xoá logo nhìn thấy được, giữ nguyên hình ảnh. Không bịa thêm, không làm mờ.
+### Xoá logo AI hiển thị, giữ nguyên hình. Không bịa chi tiết, không làm nhoè.
 
 [![CI](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml/badge.svg)](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/dieplai/cleanplate?color=0f766e)](https://github.com/dieplai/cleanplate/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/dieplai/cleanplate/total?color=0f766e)](https://github.com/dieplai/cleanplate/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Rust](https://img.shields.io/badge/rust-core%20%2B%20CLI-B7410E.svg)](./crates)
-[![Status: research preview](https://img.shields.io/badge/status-research%20preview-orange.svg)](./CHANGELOG.md)
+[![Platforms](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-supported-555.svg)](#cài-đặt)
+[![Dùng thử trên trình duyệt](https://img.shields.io/badge/d%C3%B9ng%20th%E1%BB%AD-tr%C3%AAn%20tr%C3%ACnh%20duy%E1%BB%87t-14b8a6.svg)](https://dieplai.github.io/cleanplate/)
 
 [English](./README.md) · **Tiếng Việt**
 
 </div>
 
-<p align="center"><img src="docs/assets/hero_veo_legacy.gif" width="720" alt="Logo chữ Veo: gốc, GWT, wmr, cleanplate"></p>
+<p align="center"><img src="docs/assets/hero_veo_legacy.gif" width="720" alt="Logo chữ Veo: bản gốc, GWT, wmr, cleanplate"></p>
 
-**1. Đây là gì.** cleanplate xoá các logo *nhìn thấy được* mà công cụ AI đóng lên sản phẩm (chữ "Veo" của Google Veo,
-hình thoi ✦ của Gemini) trên **cả video lẫn ảnh**, và trả lại hình như chưa từng có logo. Dự án dành cho người sáng
-tạo làm sản phẩm phi thương mại với các công cụ này, cần một cảnh sạch để dựng phim, chỉnh sửa hay làm thumbnail.
+cleanplate xoá các logo **hiển thị** mà công cụ AI đóng lên sản phẩm (chữ "Veo" của Google Veo và hình ✦ của
+Gemini / Nano Banana) khỏi **video và ảnh**, trả lại hình trông như chưa từng có logo. Công cụ dành cho người làm nội
+dung dùng các AI này cho mục đích phi thương mại, cần một khung hình sạch cho cảnh phim, bản dựng hay thumbnail.
 
-**2. Vì sao cần thêm một tool nữa.** Các tool hiện có đảo lớp phủ từng frame rồi che phần còn sót bằng làm mờ hoặc AI
-vẽ lại, nên vùng logo hay bị mờ mờ. Video có một thứ mà ảnh không có: **cảnh nền di chuyển bên dưới logo, nên gần
-như mọi điểm bị che đều lộ ra, sạch, ở một frame khác.** cleanplate dựng lại vùng logo từ chính những pixel thật đó,
-và chỉ dùng ước lượng MAP ở những chỗ không frame nào nhìn thấy nền. Với ảnh, tool tự đo độ phủ của logo ngay trên
-ảnh thay vì tin vào một template cố định.
+Các tool khác đảo lớp phủ từng frame rồi che phần còn sót bằng làm mờ hoặc AI vẽ lại, nên để lại một mảng nhoè.
+cleanplate tận dụng điều video vốn có: **cảnh chuyển động bên dưới logo, nên gần như mọi điểm ảnh bị che đều lộ ra
+sạch sẽ ở một frame khác.** Nó dựng lại vùng logo từ chính các điểm ảnh thật đó. Với ảnh tĩnh, nó đo độ phủ và vị trí
+chính xác của logo ngay trên ảnh của bạn thay vì giả định.
 
-| Có đáp án, PSNR trong vùng logo (dB) | GWT 0.6.5 | wmr 1.17 | **cleanplate** | mức trần |
+| Đo với đáp án, PSNR trong vùng logo (dB, càng cao càng tốt) | GWT 0.6.5 | wmr 1.17 | **cleanplate** | trần |
 |---|---|---|---|---|
-| Video Veo 720p, 5 clip (trung bình) | 32.6 | — | **37.3** | 39.9 |
-| Ảnh Gemini ✦ PNG (gạch / neon) | 43.4 / 40.2 | 56.4 / 56.4 | **56.4 / 56.5** | 60 |
-| Ảnh lưu lại JPEG (gạch / neon) | 32.7 / 36.0 | 33.0 / 37.3 | **33.0 / 40.8** | 35.4 / 42.3 |
-| Ảnh thu nhỏ + JPEG, kiểu ảnh gửi qua mạng | không nhận ra | không nhận ra / nhận sai | **30.4 / 34.1** | 32.3 / 43.9 |
+| Video, Veo 720p, 5 clip (trung bình) | 32.6 | — | **37.3** | 39.9 |
+| Ảnh, Gemini ✦ PNG (gạch / neon) | 43.4 / 40.2 | 56.4 / 56.4 | **56.4 / 56.5** | 60 |
+| Ảnh, lưu lại JPEG (gạch / neon) | 32.7 / 36.0 | 33.0 / 37.3 | **33.0 / 40.8** | 35.4 / 42.3 |
+| Ảnh, thu nhỏ + JPEG như bản chia sẻ | không phát hiện | không phát hiện / sai | **30.4 / 34.1** | 32.3 / 43.9 |
 
-<sub>Mức trần = chính cảnh sạch đi qua cùng bộ nén: không tool nào vượt được. Bảng đầy đủ, từng clip và cách đo:
+<sub>Trần = cảnh sạch đi qua cùng codec; không công cụ nào vượt được. Từng clip và cách đo từng con số:
 <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
-> **Chỉ xoá logo nhìn thấy được.** cleanplate không cố xoá SynthID (watermark ẩn) hay thông tin nguồn gốc C2PA.
-> Việc nén lại không thể giữ chữ ký C2PA còn hiệu lực (chữ ký gắn với pixel gốc); metadata của container video được
-> chép sang, metadata của ảnh thì không. Hãy ghi chú nội dung do AI tạo theo quy định của nền tảng và người xem.
+> [!IMPORTANT]
+> **Chỉ xoá logo hiển thị.** cleanplate không động tới SynthID (watermark ẩn) hay thông tin nguồn gốc C2PA. Hãy ghi
+> nhãn nội dung do AI tạo theo quy định của nền tảng và kỳ vọng của người xem.
 
-## Kết quả tổng quan
+## Mục lục
 
-![Kết quả tổng quan](./docs/assets/overview.png)
+[Kết quả](#kết-quả) · [Cài đặt](#cài-đặt) · [Cách dùng](#cách-dùng) · [Chất lượng tốt nhất](#để-có-chất-lượng-tốt-nhất) ·
+[Phương pháp](#phương-pháp) · [Hiệu năng](#hiệu-năng) · [Giới hạn](#giới-hạn-đã-biết) · [Hỏi đáp](#hỏi-đáp) ·
+[Ủng hộ](#-ủng-hộ) · [Giấy phép](#giấy-phép)
+
+## Kết quả
+
+![Tổng quan kết quả](./docs/assets/overview.png)
 
 <table>
 <tr>
 <td width="50%"><img src="docs/assets/hero_veo.gif" alt="Logo Veo trên cảnh chợ hoa chuyển động"><br><sub>Veo 3.1, cảnh chuyển động: gốc · GWT · cleanplate</sub></td>
-<td width="50%"><img src="docs/assets/hero_gemini.gif" alt="Logo Gemini trên phim hoạt hình chuyển động nhanh"><br><sub>Gemini ✦, chuyển động nhanh (20 px/frame): gốc · cleanplate</sub></td>
+<td width="50%"><img src="docs/assets/hero_gemini.gif" alt="Logo Gemini trên phim hoạt hình chuyển động nhanh"><br><sub>Gemini ✦ trên chuyển động nhanh (20 px/frame): gốc · cleanplate</sub></td>
 </tr>
 </table>
 
-<p align="center"><img src="docs/assets/hero_still.jpg" width="860" alt="Ảnh Flow: GWT sửa sai chỗ, wmr không nhận ra, cleanplate xoá sạch"><br>
-<sub>Ảnh thật từ Flow (Nano Banana), logo ✦ 48 px rất mờ. GWT tô một hình thoi tối vào sai chỗ và để nguyên logo; wmr không nhận ra.</sub></p>
+<p align="center"><img src="docs/assets/hero_still.jpg" width="860" alt="Ảnh Flow: GWT sửa sai chỗ, wmr không phát hiện, cleanplate xoá được"><br>
+<sub>Ảnh Flow (Nano Banana) thật với ✦ 48 px mờ. GWT vẽ một hình thoi tối sai chỗ; wmr không phát hiện ra logo.</sub></p>
 
-## Xử lý được những gì
+## Cài đặt
 
-| Trường hợp | Cách làm |
+### Cách 1 — dùng trên trình duyệt (không cần cài gì)
+
+Mở **[dieplai.github.io/cleanplate](https://dieplai.github.io/cleanplate/)** bằng Chrome hoặc Edge rồi kéo file vào.
+Mọi thứ chạy trên máy bạn, file không được tải lên đâu cả. Ảnh cho kết quả giống hệt CLI; video chậm hơn (một luồng)
+và được nén lại bằng H.264.
+
+### Cách 2 — tải công cụ dòng lệnh
+
+| Hệ điều hành | Tải về | Sau đó |
+|---|---|---|
+| **Windows** 10/11 (x64) | [cleanplate-windows-x86_64.zip](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-windows-x86_64.zip) | Giải nén; chạy `cleanplate.exe` từ terminal trong thư mục đó |
+| **macOS** (Apple Silicon và Intel) | [cleanplate-macos-universal.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-macos-universal.tar.gz) | `tar xzf`; chạy một lần: `xattr -d com.apple.quarantine cleanplate` |
+| **Linux** x86_64 (glibc 2.35+) | [cleanplate-linux-x86_64.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-linux-x86_64.tar.gz) | `tar xzf`; tuỳ chọn chép `cleanplate` vào `~/.local/bin` |
+
+**Xử lý video cần thêm [ffmpeg](https://ffmpeg.org) trong PATH** (ảnh thì không cần):
+
+| Hệ điều hành | Lệnh |
 |---|---|
-| Cảnh chuyển động | Lấy pixel thật từ các frame lân cận theo optical flow (DIS, kiểm tra hai chiều, gộp theo nghịch đảo phương sai) |
-| Cảnh tĩnh | Trung bình phép đảo trên cả cảnh + MAP–TV có trọng số; λ chọn theo chuyển động đo được của từng cảnh |
-| Chuyển động nhanh | Loại ứng viên sai lệch lớn so với phép đảo của chính frame đó; TV trên viền logo ở chỗ không có pixel sạch |
-| Chuyển cảnh | Tự phát hiện cắt cảnh; không bao giờ lấy pixel qua chỗ cắt |
-| Màu sắc | Xử lý trực tiếp trên YUV gốc theo chuẩn đặt chroma của H.264; không chuyển qua RGB |
-| Ảnh | Tự đo độ phủ, độ lệch dưới 1 pixel và kích thước lẻ (với ảnh đã thu nhỏ); làm mịn theo độ chi tiết cho JPEG |
-| Các loại logo | Chữ Veo (720p, bản cũ 68 px), Gemini ✦ 36/48/96 px ở cả hai phiên bản (độ phủ 0.30 và 0.50), ảnh Flow |
-| An toàn | Phải nhận ra logo chắc chắn, không thì để nguyên file (14/14 file sạch bị từ chối) |
-| Xuất file | Giữ âm thanh và thông tin màu; ProRes 422 HQ, AV1 10-bit, H.264 hoặc FFV1 không mất dữ liệu; ảnh giữ định dạng gốc |
+| Windows | `winget install --id Gyan.FFmpeg -e`, rồi mở một terminal **mới** |
+| macOS | `brew install ffmpeg` |
+| Ubuntu / Debian | `sudo apt install ffmpeg` |
+| Fedora | `sudo dnf install ffmpeg-free` (không có x264: cleanplate sẽ xuất AV1) |
 
-## Bắt đầu nhanh
+### Cách 3 — build từ mã nguồn
 
 ```bash
 git clone https://github.com/dieplai/cleanplate.git && cd cleanplate
-cargo install --path crates/cleanplate-cli        # Rust ≥ 1.88; video cần thêm ffmpeg trong PATH
-
-cleanplate anh.png anh_sach.png
-cleanplate clip.mp4 clip_sach.mov                 # .mov = ProRes 422 HQ; hoặc --codec av1 / h264 / ffv1
-cleanplate clip_1080p.mp4 ra.mov --guide clip_720p_sach.mov      # bản AI upscale + bản 720p đã làm sạch
+cargo install --path crates/cleanplate-cli      # Rust ≥ 1.88 (https://rustup.rs); ~1–3 phút
 ```
 
-Một clip 720p dài 8 giây mất **3–9 giây** (cảnh tĩnh 9:16 mất 18 giây), một ảnh 2528×1696 mất **2 giây**, trên laptop
-12 nhân. **Nhanh hơn bản Python khoảng 16 lần với cùng chất lượng** (cổng kiểm tra có đáp án: trung bình 36.65 so với
-36.64 dB trên 8 clip; ảnh trùng khớp; `bench/rust_vs_python.sh`). File không có logo không bao giờ bị sửa: tool thoát với
-mã 2 và không ghi gì.
-
-**Để có chất lượng cao nhất:** tải bản **độ phân giải gốc** (trên Flow là 720p "Kích thước gốc"). Bản 1080p và 4K của
-Flow là bản AI upscale từ video **đã có logo**, nên logo bị vẽ lại và làm mất một phần nội dung bên dưới. Nếu bạn chỉ
-có bản 1080p, hãy đưa thêm bản 720p của cùng clip qua `--guide`.
-
-`crates/cleanplate-core` chứa toàn bộ thuật toán, không đọc/ghi file hay gọi hệ điều hành (sẵn sàng cho WebAssembly);
-`crates/cleanplate-cli` lo phần đọc/ghi. Code Python trong `research/` được giữ làm đặc tả tham chiếu và benchmark
-nghiên cứu (`pip install numpy opencv-python`).
-
-### Trên trình duyệt
-
-Thư mục `web/` là một trang kéo-thả tĩnh chạy chính core Rust dưới dạng WebAssembly (ảnh và video MP4/MOV; không
-upload gì cả). Mở bằng Chrome hoặc Edge (video cần WebCodecs):
+## Cách dùng
 
 ```bash
-python3 -m http.server 8765 --directory web       # rồi mở http://localhost:8765
-./web/build.sh                                    # sau khi sửa code Rust: build lại web/cleanplate.wasm
+cleanplate photo.png photo_clean.png            # ảnh: vào PNG, JPG hoặc WebP; ra cùng hoặc khác định dạng
+cleanplate clip.mp4 clip_clean.mp4              # video: H.264 (hoặc AV1), giữ âm thanh và thông tin màu
+cleanplate clip.mp4 clip_clean.mov              # ProRes 422 HQ để dựng phim
+cleanplate clip.mp4 clip_clean.mkv              # FFV1 lossless
+cleanplate clip_1080p.mp4 out.mov --guide clip_720p_clean.mov   # bản tải AI upscale + bản 720p đã làm sạch
 ```
 
-Ảnh ra giống hệt CLI từng pixel (2528×1696 mất ~9 s, một luồng). Video 720p dài 8 s mất ~21 s, được nén lại bằng
-H.264 và giữ nguyên âm thanh; trên bench có ground truth thấp hơn bản AV1 của CLI 0,5 dB (39,03 so với 39,52 dB trên
-`night_720p`), do codec chứ không do thuật toán.
+Trên Windows, khi chạy trong thư mục vừa giải nén thì gõ `.\cleanplate.exe` thay cho `cleanplate`.
 
-## Cách hoạt động
+| Tuỳ chọn | Ý nghĩa |
+|---|---|
+| `--codec auto\|h264x\|av1\|h264\|prores\|ffv1` | Bộ mã hoá video. `auto` chọn theo đuôi file ra và những gì ffmpeg của bạn có |
+| `--guide FILE` | Với bản tải Flow 1080p / 4K: cùng clip ở 720p, đã làm sạch |
+| `--threads N` | Số luồng (mặc định: tất cả nhân CPU) |
+| `--lam`, `--k`, `--min-ncc`, `--opaque`, `--no-edge-tv` | Tinh chỉnh nâng cao; xem `cleanplate --help` |
+
+**Mã thoát:** `0` đã xoá · `2` không tìm thấy logo đủ chắc chắn, **không ghi gì** (file gốc không bao giờ bị sửa) ·
+`1` lỗi (thông báo nói rõ cần làm gì, ví dụ cách cài ffmpeg).
+
+## Để có chất lượng tốt nhất
+
+- **Tải bản độ phân giải gốc.** Trong Flow chọn 720p "original size". Bản 1080p và 4K của Flow là AI upscale từ video
+  *đã có logo*: logo bị vẽ lại và phá một phần chi tiết bên dưới. Nếu chỉ có bản 1080p, hãy làm sạch thêm bản 720p
+  rồi truyền vào bằng `--guide`.
+- **Dùng file đúng như lúc tải về.** Mỗi lần nén lại (app nhắn tin, mạng xã hội, quay màn hình) làm mất chi tiết mà
+  phương pháp cần. cleanplate vẫn xử lý được bản đã thu nhỏ hoặc nén lại, nhưng độ chính xác thấp hơn.
+- **Lưu ảnh dạng PNG.** PNG không mất dữ liệu; xuất JPEG sẽ nén lại toàn bộ ảnh.
+- **Để dựng phim, xuất `.mov` (ProRes) hoặc `.mkv` (FFV1)** để công cụ tiếp theo nhận file không mất dữ liệu.
+
+## Phương pháp
 
 ```
-video ─► nhận diện (NCC nhiều template, vị trí chuẩn, không chắc thì từ chối)
-      ─► tách cảnh (điểm cắt)
-      ─► với từng frame, từng pixel của logo:
-            đảo lớp phủ trên YUV gốc                    I = (J − a·L) / (1 − a)
-            lấy cùng điểm cảnh từ ±K frame               (optical flow + kiểm tra nhất quán)
-            trọng số: pixel sạch ≫ phép đảo (1 − a)², × độ tin flow × suy giảm theo thời gian
-            loại sai lệch lớn, trung bình bền vững
-            MAP–TV có trọng số chỉ ở chỗ không có pixel sạch
-      ─► dán lại (viền mềm) vào frame gốc, nén, chép âm thanh + thông tin màu
+video ─► dò      khớp nhiều mẫu NCC tại vị trí quen thuộc của từng công cụ; không chắc thì từ chối
+      ─► cảnh    phát hiện điểm cắt cảnh; không bao giờ mượn điểm ảnh qua điểm cắt
+      ─► mỗi frame, mỗi điểm ảnh trong logo:
+            đảo lớp phủ trong không gian YUV gốc         I = (J − a·L) / (1 − a)
+            lấy cùng điểm cảnh từ ±K frame lân cận       optical flow DIS + kiểm tra xuôi/ngược
+            trọng số: điểm sạch ≫ điểm đảo (1 − a)², × độ tin cậy flow × suy giảm theo thời gian
+            loại ngoại lai thô, trung bình bền vững
+            MAP với TV có trọng số chỉ ở nơi chưa frame nào thấy nền
+      ─► dán     làm mềm viền, vào frame không bị đụng tới; mã hoá; giữ âm thanh và thông tin màu
+
+ảnh  ─► dò ✦ ở mọi kích thước ─► đo độ phủ, độ lệch dưới 1 pixel và kích thước trên chính ảnh ─► đảo chính xác
+     ─► TV thích ứng theo kết cấu cho ảnh JPEG / WebP
 ```
 
-Chi tiết, bằng chứng và các ý tưởng đã thử rồi loại: [`docs/method.md`](./docs/method.md),
-[`docs/benchmark.md`](./docs/benchmark.md).
+| Trường hợp | Cách xử lý |
+|---|---|
+| Cảnh chuyển động | Gom điểm ảnh thật từ frame lân cận theo optical flow, gộp theo nghịch đảo phương sai |
+| Cảnh tĩnh | Trung bình phép đảo trên cả cảnh + MAP TV có trọng số; λ chọn theo chuyển động đo được của từng cảnh |
+| Chuyển động nhanh | Loại ngoại lai so với phép đảo của chính frame; TV ở viền logo nơi không có điểm sạch |
+| Màu | YUV gốc theo vị trí lấy mẫu màu của H.264; không đổi qua RGB |
+| Ảnh | Đo độ phủ ngay trên ảnh (hai kiểu ✦, độ phủ 0.30 và 0.50); ảnh thu nhỏ qua kích thước lẻ |
+| Logo | Chữ Veo (720p, 1080p, bản cũ 68 px), Gemini ✦ 36 / 48 / 96 px, ảnh Flow (Nano Banana) |
+| An toàn | Không khớp đủ chắc thì không sửa file (14 / 14 file sạch bị từ chối); input quá nhỏ cũng bị từ chối |
+
+Bằng chứng cho từng bước và các ý tưởng đã thử rồi loại: [`docs/method.md`](./docs/method.md).
+
+Tham khảo: Dekel và cộng sự, *On the Effectiveness of Visible Watermarks*, CVPR 2017 · E2FGVI (CVPR 2022) và
+ProPainter (ICCV 2023) cho lan truyền theo flow · Kroeger và cộng sự, optical flow DIS, ECCV 2016 · TV
+Rudin–Osher–Fatemi, 1992.
+
+## Hiệu năng
+
+Trên laptop 12 nhân: clip 720p dài 8 giây mất **3–9 giây** (cảnh tĩnh 9:16 mất 18 giây), ảnh 2528×1696 mất **2 giây**:
+**nhanh hơn bản Python tham chiếu khoảng 16 lần với cùng chất lượng** (cổng đo có đáp án trên 8 clip: trung bình 36,65
+so với 36,64 dB; ảnh giống hệt từng bit; [`bench/rust_vs_python.sh`](./bench/rust_vs_python.sh)). Bản trình duyệt chạy
+cùng core dưới dạng WebAssembly trên một luồng: ~9 giây cho ảnh đó, ~21 giây cho clip đó.
+
+Mã Rust chia thành [`cleanplate-core`](./crates/cleanplate-core) (toàn bộ thuật toán, không đụng file hay hệ điều
+hành) và [`cleanplate-cli`](./crates/cleanplate-cli) (đọc ghi file và ffmpeg);
+[`cleanplate-wasm`](./crates/cleanplate-wasm) + [`web/`](./web) là trang trình duyệt. Mã Python trong
+[`research/`](./research) là đặc tả tham chiếu và bộ benchmark.
 
 ## Giới hạn đã biết
 
-- **Cảnh tĩnh bị giới hạn bởi thông tin.** Nếu nền dưới logo không bao giờ lộ ra, cleanplate trả về hình khả dĩ nhất,
-  không phải chi tiết mà bộ nén đã bỏ đi (trường hợp xấu nhất: bếp 9:16, 36.2 so với mức sàn 41.9 dB).
-- **Bản tải đã AI upscale** (Flow 1080p/4K) vẽ lại logo theo từng nền; không có `--guide` 720p thì cảnh tĩnh còn một
-  vùng mịn rất nhẹ.
-- **Logo trên nền trắng tuyệt đối** (chỉ sáng thêm ≤ 7 mức trên nền 253) không tool nào nhận ra, kể cả cleanplate;
-  mắt thường cũng gần như không thấy.
+- **Cảnh tĩnh bị giới hạn thông tin.** Nếu nền dưới logo không bao giờ lộ ra, cleanplate trả về hình có khả năng
+  đúng nhất, không phải chi tiết mà codec đã vứt bỏ (trường hợp xấu nhất: cảnh bếp 9:16, 36,2 so với 41,9 dB).
+- **Bản tải AI upscale** (Flow 1080p / 4K) vẽ lại logo theo từng nền; không có `--guide` 720p thì cảnh tĩnh còn một
+  mảng mờ nhẹ.
+- **Logo trên nền trắng tuyệt đối** (≤ 7 mức trên 253) không công cụ nào phát hiện được, kể cả cleanplate; khi đó
+  logo cũng gần như vô hình.
+- Video trên trình duyệt cần Chrome hoặc Edge và file MP4 / MOV H.264; định dạng khác hãy dùng CLI.
 
-## Lộ trình
+## Hỏi đáp
 
-- [x] Pipeline video tham chiếu + benchmark có đáp án (8 clip)
-- [x] Ảnh: tự đo độ phủ, ảnh đã thu nhỏ hoặc nén lại
-- [x] Flow 1080p (`--guide`), video app Gemini, ảnh Flow, ảnh qua Zalo
-- [x] Lõi Rust + một file CLI (Linux, macOS, Windows) — cùng chất lượng bản tham chiếu, nhanh hơn ~16 lần
-- [x] Trang kéo thả chạy trong trình duyệt (WebAssembly + WebCodecs; file không rời khỏi máy bạn)
-- [ ] Tuỳ chọn upscale kết quả đã sạch
+**Có xoá SynthID hay C2PA không?** Không. Chỉ xoá logo hiển thị. SynthID giữ nguyên, còn chữ ký C2PA không thể còn hợp
+lệ sau bất kỳ lần nén lại nào.
+
+**File của tôi không bị sửa (mã thoát 2).** cleanplate không tìm thấy logo đủ chắc chắn nên không đoán bừa. Điều này
+xảy ra với file sạch, bản rất nhỏ hoặc bị nén lại nhiều lần, và logo trên nền trắng. Nếu bạn vẫn thấy logo, hãy
+[mở issue](https://github.com/dieplai/cleanplate/issues) kèm file.
+
+**Windows báo "Windows protected your PC".** File chạy chưa được ký số. Chọn *More info → Run anyway*, hoặc build từ
+mã nguồn.
+
+**File có bị tải lên đâu không?** Không. CLI chạy offline; trang web xử lý file ngay trong tab trình duyệt.
+
+## 💖 Ủng hộ
+
+Nếu cleanplate giúp bạn tiết kiệm thời gian, hãy tặng dự án một ⭐ trên GitHub hoặc tài trợ để phát triển tiếp:
+
+<a href="https://github.com/sponsors/dieplai"><img src="https://img.shields.io/badge/Sponsor-dieplai-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Tài trợ dieplai trên GitHub" height="40"></a>
 
 ## Giấy phép
 
 | Phần | Giấy phép |
 |---|---|
-| Code (`research/`, `tests/`, `docs/*.py`) | [MIT](./LICENSE) |
-| Template logo Veo 720p / 1080p (cleanplate tự trích) | MIT |
-| Template hình thoi Gemini và chữ Veo cũ | MIT, © Frédéric Guigand, từ [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover); xem [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) |
+| Mã nguồn | [MIT](./LICENSE) |
+| Mẫu logo Veo 720p / 1080p (cleanplate tự trích xuất) | MIT |
+| Mẫu ✦ Gemini và Veo bản cũ | MIT, © Frédéric Guigand, từ [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover); xem [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) |
+| Bố cục trang web, mp4box, mp4-muxer | Xem [web/THIRD_PARTY.md](./web/THIRD_PARTY.md) |
 
-Tài liệu tham khảo: Dekel và cộng sự, *On the Effectiveness of Visible Watermarks*, CVPR 2017 · E2FGVI (CVPR 2022) và
-ProPainter (ICCV 2023) về lan truyền theo optical flow · DIS optical flow (ECCV 2016) · TV của Rudin–Osher–Fatemi (1992).
-
-Rất hoan nghênh đóng góp: đọc [CONTRIBUTING.md](./CONTRIBUTING.md). Mọi khẳng định "tốt hơn" cần có số liệu từ
-`research/score_gt.py` hoặc `research/img_bench.py` kèm ảnh so sánh.
+Mọi đóng góp đều được hoan nghênh: đọc [CONTRIBUTING.md](./CONTRIBUTING.md). Muốn khẳng định "tốt hơn" cần có số đo từ
+`research/score_gt.py` hoặc `research/img_bench.py` và hình so sánh trực quan.

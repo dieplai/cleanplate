@@ -1,5 +1,5 @@
 //! Video path: pass 1 (corner crops + thumbnails), detection, rebuild, pass 2 (paste + encode).
-use crate::ffmpeg::{encoder_args, has_encoder, probe, Decoder};
+use crate::ffmpeg::{encoder_args, encoders, pick_codec, probe, Decoder};
 use anyhow::{Context, Result};
 use cleanplate_core::detect::{detect_video, sample_step, shot_cuts};
 use cleanplate_core::geom::{remap, resize_area, Border, Interp};
@@ -34,6 +34,9 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         w % 2 == 0 && h % 2 == 0,
         "odd frame size {w}x{h} is not supported (4:2:0 needs even dimensions)"
     );
+    // resolve the encoder before the expensive work so a missing one fails fast
+    let avail = encoders();
+    let codec = pick_codec(&o.codec, out, |e| avail.iter().any(|a| a == e))?;
     log(format!(
         "{w}x{h} @ {}, audio={}, colour={:?}",
         p.fps, p.has_audio, p.color
@@ -60,6 +63,11 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         thumbs.push(resize_area(&Plane::from_u8(w, h, y), 64, 36));
     }
     let n = cy.len();
+    anyhow::ensure!(
+        n > 0,
+        "no video frames could be decoded from {}",
+        inp.display()
+    );
     log(format!("pass 1: {n} frames, corner crop {cw}x{ch}"));
     let shots = shot_cuts(&thumbs);
     log(format!("shots: {} -> {:?}", shots.len(), shots));
@@ -73,7 +81,7 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     let det = match detect_video(&refs, w, h, o.min_ncc) {
         Ok(d) => d,
         Err(r) => {
-            println!("no mark found with confidence (best ncc {:.2} < {:.2}) — leaving the video untouched", r.best_ncc, r.floor);
+            println!("{r} — leaving the video untouched");
             return Ok(2);
         }
     };
@@ -140,21 +148,6 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         ));
     }
     // pass 2: paste the rebuilt region (feathered) into the untouched frames and encode
-    let ext = out
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
-    let codec = if o.codec == "auto" {
-        if ext == "mov" {
-            "prores".to_string()
-        } else if has_encoder("libx264") {
-            "h264x".to_string()
-        } else {
-            "av1".to_string()
-        }
-    } else {
-        o.codec.clone()
-    };
     let mut enc = Command::new("ffmpeg")
         .args(encoder_args(&codec, inp, out, &p))
         .stdin(Stdio::piped())

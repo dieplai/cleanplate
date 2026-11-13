@@ -13,8 +13,21 @@ pub fn is_still(p: &Path) -> bool {
 
 /// Exit code: 0 done, 2 refused (nothing written).
 pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
-    let img = image::open(inp).with_context(|| format!("reading {}", inp.display()))?;
+    // the format comes from the content, not the extension (a JPEG saved as .png is common)
+    let reader = image::ImageReader::open(inp)
+        .with_context(|| format!("opening {}", inp.display()))?
+        .with_guessed_format()?;
+    let fmt = reader.format();
+    let img = reader
+        .decode()
+        .with_context(|| format!("reading {}", inp.display()))?;
     let has_alpha = img.color().has_alpha();
+    if img.color().bytes_per_pixel() > img.color().channel_count() {
+        eprintln!(
+            "note: {} has 16-bit channels; the result is saved with 8-bit channels",
+            inp.display()
+        );
+    }
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as usize, rgba.height() as usize);
     let rgb: Vec<u8> = rgba.pixels().flat_map(|p| [p[0], p[1], p[2]]).collect();
@@ -23,14 +36,16 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
             .map(|e| e.to_string_lossy().to_lowercase())
             .unwrap_or_default()
     };
-    let lossy = matches!(ext(inp).as_str(), "jpg" | "jpeg" | "webp");
+    let lossy = match fmt {
+        Some(image::ImageFormat::Png) => false,
+        Some(image::ImageFormat::Jpeg) => true,
+        // WebP may be lossless or lossy; treat it as lossy like the reference
+        _ => matches!(ext(inp).as_str(), "jpg" | "jpeg" | "webp"),
+    };
     let r = match remove_still(&rgb, w, h, lossy, lam) {
         Ok(r) => r,
         Err(e) => {
-            println!(
-                "no mark found with confidence (ncc {:.2} < {}) — image left untouched",
-                e.best_ncc, e.floor
-            );
+            println!("{e} — image left untouched");
             return Ok(2);
         }
     };

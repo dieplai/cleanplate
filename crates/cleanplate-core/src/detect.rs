@@ -18,11 +18,48 @@ pub struct Detection {
     pub alpha: Plane,
 }
 
+/// Why nothing was removed. The input must then be left untouched.
 #[derive(Debug)]
 pub struct Refusal {
-    pub best_ncc: f32,
+    pub kind: RefusalKind,
+    /// The measured value that fell short of `floor` (ncc, fitted opacity, or the short side in px).
+    pub value: f32,
     pub floor: f32,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefusalKind {
+    /// The best template match is below the confidence floor.
+    Ncc,
+    /// A match was found but its fitted opacity is too low to be a real mark (texture).
+    Opacity,
+    /// The frame is too small to hold a mark worth removing.
+    TooSmall,
+    /// No frames were given.
+    NoFrames,
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let (v, fl) = (self.value, self.floor);
+        match self.kind {
+            RefusalKind::Ncc => write!(f, "no mark found with confidence (ncc {v:.2} < {fl:.2})"),
+            RefusalKind::Opacity => write!(
+                f,
+                "no mark found with confidence (fitted opacity {v:.3} < {fl:.2})"
+            ),
+            RefusalKind::TooSmall => write!(
+                f,
+                "too small to hold a generator mark ({v} px short side < {fl})"
+            ),
+            RefusalKind::NoFrames => write!(f, "no frames to process"),
+        }
+    }
+}
+
+/// Smallest frame short side processed: the 720p marks scaled below a third of their size are a few pixels of noise
+/// and match random texture (a 64×64 test pattern matched an 8 px diamond at 0.51).
+pub const MIN_VIDEO_SIDE: usize = 240;
 
 /// Mean over sampled frames of (frame − GaussianBlur σ 3): the mark is the only static high-frequency structure.
 /// Frames used for detection: every `max(1, N / 120)`-th (research/pipeline.py). Callers may pre-sample with it.
@@ -64,6 +101,21 @@ pub fn detect_video(
     frame_h: usize,
     min_ncc: f32,
 ) -> Result<Detection, Refusal> {
+    if corners.is_empty() {
+        return Err(Refusal {
+            kind: RefusalKind::NoFrames,
+            value: 0.0,
+            floor: 1.0,
+        });
+    }
+    if frame_w.min(frame_h) < MIN_VIDEO_SIDE {
+        let side = frame_w.min(frame_h) as f32;
+        return Err(Refusal {
+            kind: RefusalKind::TooSmall,
+            value: side,
+            floor: MIN_VIDEO_SIDE as f32,
+        });
+    }
     let (cw, ch) = (corners[0].w, corners[0].h);
     let hp = hp_mean(corners);
     let sc2 = ((frame_w.min(frame_h) as f64 / 720.0) * 1000.0).round() / 1000.0;
@@ -97,7 +149,14 @@ pub fn detect_video(
             }
         }
     }
-    let (ncc, mark, sc, mx, my, a) = best.expect("at least one template fits the corner");
+    let Some((ncc, mark, sc, mx, my, a)) = best else {
+        let side = frame_w.min(frame_h) as f32;
+        return Err(Refusal {
+            kind: RefusalKind::TooSmall,
+            value: side,
+            floor: MIN_VIDEO_SIDE as f32,
+        });
+    };
     let (mr, mb) = (cw as f64 - (mx + a.w) as f64, ch as f64 - (my + a.h) as f64);
     let at_known = mark
         .known
@@ -106,7 +165,8 @@ pub fn detect_video(
     let floor = if at_known { 0.45 } else { min_ncc.max(0.75) };
     if ncc < floor {
         return Err(Refusal {
-            best_ncc: ncc,
+            kind: RefusalKind::Ncc,
+            value: ncc,
             floor,
         });
     }

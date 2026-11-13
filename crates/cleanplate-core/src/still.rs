@@ -1,6 +1,6 @@
 //! Stills (research/image.py): scale-free detection of the Gemini diamond, opacity / offset / fractional size fitted on
 //! the image itself, inversion, texture-adaptive TV for lossy inputs.
-use crate::detect::Refusal;
+use crate::detect::{Refusal, RefusalKind};
 use crate::filter::{dilate_rect, gaussian_blur, sobel3};
 use crate::geom::{remap, resize_area, resize_cubic, Border, Interp};
 use crate::marks::catalog;
@@ -19,6 +19,8 @@ const PLACE: [f64; 3] = [2.0 / 3.0, 1.6, 2.0];
 /// Below this fitted opacity the "mark" is texture: a clean 1024² noise texture matched a 26 px diamond at a known
 /// placement (ncc 0.44 > 0.3) but calibrated to 0.078.
 pub const MIN_OPACITY: f32 = 0.15;
+/// Smallest still short side processed (below it the corner search has no room; the smallest Gemini mark is 26 px).
+pub const MIN_STILL_SIDE: usize = 64;
 
 struct Shape {
     name: &'static str,
@@ -336,6 +338,14 @@ pub fn remove_still(
     lossy: bool,
     lam: f32,
 ) -> Result<StillResult, Refusal> {
+    if w.min(h) < MIN_STILL_SIDE {
+        let side = w.min(h) as f32;
+        return Err(Refusal {
+            kind: RefusalKind::TooSmall,
+            value: side,
+            floor: MIN_STILL_SIDE as f32,
+        });
+    }
     let mut log = vec![];
     let ch: [Plane; 3] = [0, 1, 2].map(|c| Plane {
         w,
@@ -352,7 +362,8 @@ pub fn remove_still(
     ));
     if ncc < floor {
         return Err(Refusal {
-            best_ncc: ncc,
+            kind: RefusalKind::Ncc,
+            value: ncc,
             floor,
         });
     }
@@ -459,8 +470,9 @@ pub fn remove_still(
     // a mark that is not there calibrates to ~0 opacity (real Google marks: 0.28–0.50); never touch the image then
     if gain < MIN_OPACITY {
         return Err(Refusal {
-            best_ncc: ncc,
-            floor,
+            kind: RefusalKind::Opacity,
+            value: gain,
+            floor: MIN_OPACITY,
         });
     }
     let s_ = cal.shape_at(&sh[si].s, dx, dy, ds);

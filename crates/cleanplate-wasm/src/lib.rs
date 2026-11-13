@@ -108,19 +108,9 @@ pub unsafe extern "C" fn cp_remove(rgb: *const u8, w: usize, h: usize, lossy: u3
 
 /// Same contract as the CLI: refuse rather than touch an image without a confident mark.
 pub fn run(px: &[u8], w: usize, h: usize, lossy: bool) -> (u32, String, Vec<u8>) {
-    if w < 64 || h < 64 {
-        return (2, format!("image too small ({w}x{h})"), vec![]);
-    }
     match remove_still(px, w, h, lossy, -1.0) {
         Ok(r) => (0, r.log.join("\n"), r.rgb),
-        Err(e) => (
-            2,
-            format!(
-                "no mark found with confidence (ncc {:.2} < {}) — image left untouched",
-                e.best_ncc, e.floor
-            ),
-            vec![],
-        ),
+        Err(e) => (2, format!("{e} — image left untouched"), vec![]),
     }
 }
 

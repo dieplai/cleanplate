@@ -65,9 +65,6 @@ impl Vid {
                 "odd frame size {w}x{h} is not supported (4:2:0 needs even dimensions)"
             ));
         }
-        if w < 256 || h < 256 {
-            return Err(format!("video too small ({w}x{h})"));
-        }
         let (cw, ch) = ((w / 2).min(480) & !1, (h / 2).min(320) & !1);
         Ok(Vid {
             w,
@@ -125,10 +122,7 @@ impl Vid {
         let det = match detect_video(&refs, self.w, self.h, 0.5) {
             Ok(d) => d,
             Err(r) => {
-                log.push(format!(
-                    "no mark found with confidence (best ncc {:.2} < {:.2}) — video left untouched",
-                    r.best_ncc, r.floor
-                ));
+                log.push(format!("{r} — video left untouched"));
                 return (2, log.join("\n"));
             }
         };

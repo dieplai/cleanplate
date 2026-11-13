@@ -2,12 +2,14 @@
 
 # cleanplate
 
-### Remove the visible mark, keep the picture. Nothing invented, nothing blurred.
+### Remove the visible AI mark, keep the picture. Nothing invented, nothing blurred.
 
 [![CI](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml/badge.svg)](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/dieplai/cleanplate?color=0f766e)](https://github.com/dieplai/cleanplate/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/dieplai/cleanplate/total?color=0f766e)](https://github.com/dieplai/cleanplate/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Rust](https://img.shields.io/badge/rust-core%20%2B%20CLI-B7410E.svg)](./crates)
-[![Status: research preview](https://img.shields.io/badge/status-research%20preview-orange.svg)](./CHANGELOG.md)
+[![Platforms](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-supported-555.svg)](#install)
+[![Try it in the browser](https://img.shields.io/badge/try%20it-in%20your%20browser-14b8a6.svg)](https://dieplai.github.io/cleanplate/)
 
 **English** · [Tiếng Việt](./README.vi.md)
 
@@ -15,32 +17,36 @@
 
 <p align="center"><img src="docs/assets/hero_veo_legacy.gif" width="720" alt="Veo text mark: original, GWT, wmr, cleanplate"></p>
 
-**1. What it is.** cleanplate removes the *visible* marks that AI generators stamp on their output (Google Veo's
-"Veo" text and Gemini's ✦ diamond) from **videos and still images**, and gives back footage that looks like it never
-had one. It is built for creators who make non-commercial work with these tools and want a clean plate for a film
-scene, an edit or a thumbnail.
+cleanplate removes the **visible** marks that AI generators stamp on their output (Google Veo's "Veo" text and
+Gemini / Nano Banana's ✦ diamond) from **videos and still images**, and gives back footage that looks like it never
+had one. It is made for creators who use these tools for non-commercial work and need a clean plate for a scene, an
+edit or a thumbnail.
 
-**2. Why another remover.** Existing tools invert the overlay frame by frame and then hide what is left with a blur or
-a learned inpainter, which leaves a soft patch. A video has something an image does not: **the scene moves under the
-mark, so almost every hidden pixel is visible, clean, in some other frame.** cleanplate rebuilds the mark area from
-those real pixels and falls back to a principled MAP estimate only where no frame ever saw the background. On stills
-it measures the mark's opacity on the image itself instead of trusting a template.
+Other removers invert the overlay frame by frame, then hide what is left with a blur or an AI inpainter, which leaves
+a soft patch. cleanplate uses what a video already has: **the scene moves under the mark, so almost every hidden pixel
+is visible, clean, in another frame.** It rebuilds the mark area from those real pixels. On stills it measures the
+mark's exact opacity and position on your image instead of assuming them.
 
-| Ground truth, PSNR inside the mark (dB) | GWT 0.6.5 | wmr 1.17 | **cleanplate** | ceiling |
+| Ground truth, PSNR inside the mark (dB, higher is better) | GWT 0.6.5 | wmr 1.17 | **cleanplate** | ceiling |
 |---|---|---|---|---|
 | Video, Veo 720p, 5 clips (mean) | 32.6 | — | **37.3** | 39.9 |
 | Still, Gemini ✦ PNG (brick / neon) | 43.4 / 40.2 | 56.4 / 56.4 | **56.4 / 56.5** | 60 |
 | Still, re-saved JPEG (brick / neon) | 32.7 / 36.0 | 33.0 / 37.3 | **33.0 / 40.8** | 35.4 / 42.3 |
 | Still, resized + JPEG, like a shared copy | not detected | not detected / wrong | **30.4 / 34.1** | 32.3 / 43.9 |
 
-<sub>Ceiling / floor = the clean footage through the same codec: no remover can beat it. Full tables, every clip and
-the method behind each number: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
+<sub>Ceiling = the clean footage through the same codec; no remover can beat it. Every clip and how each number was
+measured: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
-> **Visible marks only.** cleanplate does not try to remove SynthID (the invisible watermark) or C2PA provenance.
-> Re-encoding cannot keep a C2PA signature valid (it binds the original pixels); video container metadata is copied,
-> still-image metadata is not. Label AI-generated content as your platform and your audience expect.
+> [!IMPORTANT]
+> **Visible marks only.** cleanplate does not touch SynthID (the invisible watermark) or C2PA provenance. Label
+> AI-generated content as your platform and your audience expect.
 
-## Results at a glance
+## Contents
+
+[Results](#results) · [Install](#install) · [Usage](#usage) · [Best quality](#best-quality) · [Method](#method) ·
+[Performance](#performance) · [Limits](#known-limits) · [FAQ](#faq) · [Support](#-support) · [License](#license)
+
+## Results
 
 ![Results overview](./docs/assets/overview.png)
 
@@ -52,105 +58,154 @@ the method behind each number: <a href="./docs/benchmark.md">docs/benchmark.md</
 </table>
 
 <p align="center"><img src="docs/assets/hero_still.jpg" width="860" alt="Flow stills: GWT edits the wrong spot, wmr does not detect, cleanplate removes"><br>
-<sub>Real Flow (Nano Banana) stills, faint 48 px ✦. GWT paints a dark diamond at the wrong spot and leaves the mark; wmr does not detect it.</sub></p>
+<sub>Real Flow (Nano Banana) stills with a faint 48 px ✦. GWT paints a dark diamond at the wrong spot; wmr does not detect it.</sub></p>
 
-## What it handles
+## Install
 
-| Case | How |
+### Option 1 — in the browser (nothing to install)
+
+Open **[dieplai.github.io/cleanplate](https://dieplai.github.io/cleanplate/)** in Chrome or Edge and drop a file.
+Everything runs on your device; the file is never uploaded. Images give exactly the same result as the CLI; video is
+slower (single-threaded) and re-encoded as H.264.
+
+### Option 2 — download the command-line tool
+
+| System | Download | Then |
+|---|---|---|
+| **Windows** 10/11 (x64) | [cleanplate-windows-x86_64.zip](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-windows-x86_64.zip) | Unzip; run `cleanplate.exe` from a terminal in that folder |
+| **macOS** (Apple Silicon and Intel) | [cleanplate-macos-universal.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-macos-universal.tar.gz) | `tar xzf` it; once: `xattr -d com.apple.quarantine cleanplate` |
+| **Linux** x86_64 (glibc 2.35+) | [cleanplate-linux-x86_64.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-linux-x86_64.tar.gz) | `tar xzf` it; optionally move `cleanplate` into `~/.local/bin` |
+
+**Video also needs [ffmpeg](https://ffmpeg.org) on your PATH** (images do not):
+
+| System | Command |
 |---|---|
-| Moving shots | Flow-guided gathering of real pixels from neighbouring frames (DIS optical flow, forward/backward check, inverse-variance fusion) |
-| Static shots | Inversion averaged over the shot + weighted-TV MAP; λ is chosen per shot from the measured motion |
-| Fast motion | Gross-outlier veto against each frame's own inversion; TV on the mark's edge ring where no clean pixel landed |
-| Cuts | Shot detection; pixels are never borrowed across a cut |
-| Colour | Works in the video's native YUV with H.264 chroma siting; no RGB round trip |
-| Stills | Opacity, sub-pixel offset and (for resized copies) fractional size fitted on the image; texture-adaptive TV for JPEG |
-| Mark variants | Veo text (720p, legacy 68 px), Gemini ✦ 36/48/96 px in both renderings (opacity 0.30 and 0.50), Flow stills |
-| Safety | A mark must be found with confidence or the file is left untouched (14/14 clean inputs refused) |
-| Output | Audio and colour tags copied; ProRes 422 HQ, AV1 10-bit, H.264 or lossless FFV1; stills keep their format |
+| Windows | `winget install --id Gyan.FFmpeg -e`, then open a **new** terminal |
+| macOS | `brew install ffmpeg` |
+| Ubuntu / Debian | `sudo apt install ffmpeg` |
+| Fedora | `sudo dnf install ffmpeg-free` (no x264: cleanplate writes AV1 instead) |
 
-## Quick start
+### Option 3 — build from source
 
 ```bash
 git clone https://github.com/dieplai/cleanplate.git && cd cleanplate
-cargo install --path crates/cleanplate-cli        # Rust ≥ 1.88; video also needs ffmpeg on PATH
-
-cleanplate photo.png photo_clean.png
-cleanplate clip.mp4 clip_clean.mov                # .mov = ProRes 422 HQ; or --codec av1 / h264 / ffv1
-cleanplate clip_1080p.mp4 out.mov --guide clip_720p_clean.mov    # AI-upscaled download + its cleaned 720p
+cargo install --path crates/cleanplate-cli      # Rust ≥ 1.88 (https://rustup.rs); ~1–3 min
 ```
 
-An 8-second 720p clip takes **3–9 s** (a 9:16 static shot 18 s), a 2528×1696 still **2 s**, on a 12-core laptop —
-**16× faster than the Python reference at the same quality** (ground-truth gate: mean 36.65 vs 36.64 dB over 8 clips;
-stills identical; `bench/rust_vs_python.sh`). A clean input is never modified: the tool exits with code 2 and writes
-nothing.
-
-**Best quality:** download the **native resolution** (Flow: 720p "original size"). Flow's 1080p and 4K downloads are
-AI upscales of the *marked* video, so the mark is re-drawn and partly destroys what is under it; if you only have the
-1080p, pass the same clip's 720p with `--guide`.
-
-`crates/cleanplate-core` holds every algorithm with no file or OS access (ready for WebAssembly);
-`crates/cleanplate-cli` does the IO. The Python code in `research/` stays as the reference specification and the
-research bench (`pip install numpy opencv-python`).
-
-### In the browser
-
-`web/` is a static drag-and-drop page running the same Rust core as WebAssembly (images and MP4/MOV video; nothing is
-uploaded). Serve the folder and open it in Chrome or Edge (video needs WebCodecs):
+## Usage
 
 ```bash
-python3 -m http.server 8765 --directory web       # then open http://localhost:8765
-./web/build.sh                                    # after changing the Rust code: rebuild web/cleanplate.wasm
+cleanplate photo.png photo_clean.png            # still: PNG, JPG or WebP in; same or another format out
+cleanplate clip.mp4 clip_clean.mp4              # video: H.264 (or AV1), audio and colour tags copied
+cleanplate clip.mp4 clip_clean.mov              # ProRes 422 HQ for editing
+cleanplate clip.mp4 clip_clean.mkv              # lossless FFV1
+cleanplate clip_1080p.mp4 out.mov --guide clip_720p_clean.mov   # AI-upscaled download + its cleaned 720p
 ```
 
-Images come out bit-identical to the CLI (2528×1696 in ~9 s, single-threaded). Video takes ~21 s for an 8 s 720p clip
-and is re-encoded as H.264 with the audio copied; on the ground-truth bench it scores 0.5 dB below the CLI's AV1 output
-(39.03 vs 39.52 dB on `night_720p`), from the codec, not the method.
+On Windows type `.\cleanplate.exe` instead of `cleanplate` when you run it from the folder you unzipped.
 
-## How it works
+| Option | Meaning |
+|---|---|
+| `--codec auto\|h264x\|av1\|h264\|prores\|ffv1` | Video encoder. `auto` picks from the output extension and what your ffmpeg offers |
+| `--guide FILE` | For Flow 1080p / 4K downloads: the same clip at 720p, already cleaned |
+| `--threads N` | Worker threads (default: all cores) |
+| `--lam`, `--k`, `--min-ncc`, `--opaque`, `--no-edge-tv` | Expert tuning; see `cleanplate --help` |
+
+**Exit codes:** `0` cleaned · `2` no mark found with confidence, **nothing written** (the input is never modified) ·
+`1` error (the message says what to do, e.g. how to install ffmpeg).
+
+## Best quality
+
+- **Download the original resolution.** In Flow choose 720p "original size". Flow's 1080p and 4K downloads are AI
+  upscales of the *marked* video: the mark is re-drawn and partly destroys what is under it. If you only have the
+  1080p, clean the 720p too and pass it with `--guide`.
+- **Use the file as downloaded.** Every re-encode (messaging apps, social networks, screen recording) blurs the detail
+  the method recovers. cleanplate still handles resized and re-compressed copies, at lower fidelity.
+- **Save stills as PNG.** It is lossless; JPEG output re-compresses the whole picture.
+- **For editing, write `.mov` (ProRes) or `.mkv` (FFV1)** so the next tool starts from a lossless file.
+
+## Method
 
 ```
-video ─► detect (multi-template NCC, known placements, refuse if unsure)
-      ─► shots (hard cuts)
+video ─► detect   multi-template NCC at the generator's known placements; refuse when unsure
+      ─► shots    hard-cut detection; pixels are never borrowed across a cut
       ─► per frame, per mark pixel:
             invert the overlay in native YUV            I = (J − a·L) / (1 − a)
-            gather the same scene point from ±K frames  (optical flow + consistency check)
+            gather the same scene point from ±K frames  DIS optical flow + forward/backward check
             weigh: clean pixels ≫ inversions (1 − a)², × flow confidence × time decay
             veto gross outliers, robust mean
-            weighted-TV MAP only where no clean pixel exists
-      ─► feathered paste into the untouched frame, encode, copy audio + colour tags
+            weighted-TV MAP only where no frame ever saw the background
+      ─► paste    feathered, into the untouched frame; encode; copy audio and colour tags
+
+still ─► detect the ✦ at any size ─► fit opacity, sub-pixel offset and size on the image ─► exact inversion
+      ─► texture-adaptive TV for JPEG / WebP inputs
 ```
 
-Details, evidence and the ideas that were tried and rejected: [`docs/method.md`](./docs/method.md),
-[`docs/benchmark.md`](./docs/benchmark.md).
+| Case | How |
+|---|---|
+| Moving shots | Flow-guided gathering of real pixels from neighbouring frames, inverse-variance fusion |
+| Static shots | Inversion averaged over the shot + weighted-TV MAP; λ chosen per shot from the measured motion |
+| Fast motion | Gross-outlier veto against each frame's own inversion; TV on the mark's edge ring where no clean pixel landed |
+| Colour | Native YUV with H.264 chroma siting; no RGB round trip |
+| Stills | Opacity measured on the image (two ✦ renderings, opacity 0.30 and 0.50); resized copies via fractional size |
+| Marks | Veo text (720p, 1080p, legacy 68 px), Gemini ✦ 36 / 48 / 96 px, Flow (Nano Banana) stills |
+| Safety | Without a confident match the file is left untouched (14 / 14 clean inputs refused); tiny inputs refused |
+
+Evidence for every step, and the ideas that were tried and rejected: [`docs/method.md`](./docs/method.md).
+
+References: Dekel et al., *On the Effectiveness of Visible Watermarks*, CVPR 2017 · E2FGVI (CVPR 2022) and ProPainter
+(ICCV 2023) for flow-guided propagation · Kroeger et al., DIS optical flow, ECCV 2016 · Rudin–Osher–Fatemi TV, 1992.
+
+## Performance
+
+On a 12-core laptop: an 8 s 720p clip in **3–9 s** (a 9:16 static shot 18 s), a 2528×1696 still in **2 s**: **about
+16× faster than the Python reference at the same quality** (ground-truth gate over 8 clips: 36.65 vs 36.64 dB mean;
+stills bit-identical; [`bench/rust_vs_python.sh`](./bench/rust_vs_python.sh)). The browser version runs the same
+core as WebAssembly on one thread: ~9 s for that still, ~21 s for that clip.
+
+The Rust code is split into [`cleanplate-core`](./crates/cleanplate-core) (every algorithm, no file or OS access) and
+[`cleanplate-cli`](./crates/cleanplate-cli) (files and ffmpeg); [`cleanplate-wasm`](./crates/cleanplate-wasm) +
+[`web/`](./web) is the browser page. The Python in [`research/`](./research) is the reference specification and the
+benchmark harness.
 
 ## Known limits
 
 - **Static shots are information-limited.** If the background under the mark is never visible, cleanplate returns the
-  most likely image, not the detail the codec threw away (worst case: kitchen 9:16, 36.2 vs 41.9 dB floor).
-- **AI-upscaled downloads** (Flow 1080p/4K) re-draw the mark per background; without the 720p `--guide`, static shots
-  keep a faint smoothed patch.
-- **A mark on pure white** (adds ≤ 7 levels on 253) is not detected by any tool, cleanplate included; it is also
-  practically invisible.
+  most likely image, not detail the codec already threw away (worst case: a 9:16 kitchen shot, 36.2 vs 41.9 dB).
+- **AI-upscaled downloads** (Flow 1080p / 4K) re-draw the mark per background; without the 720p `--guide`, static
+  shots keep a faint smoothed patch.
+- **A mark on pure white** (≤ 7 levels on 253) is not detected by any tool, cleanplate included; it is also practically
+  invisible.
+- Video in the browser needs Chrome or Edge and an H.264 MP4 / MOV; other containers and codecs: use the CLI.
 
-## Roadmap
+## FAQ
 
-- [x] Video reference pipeline + ground-truth benchmark (8 clips)
-- [x] Still images, self-calibrated opacity, resized / re-encoded copies
-- [x] Flow 1080p (`--guide`), Gemini-app and Flow stills, Zalo round trip
-- [x] Rust core + single-file CLI (Linux, macOS, Windows) — same quality as the reference, ~16× faster
-- [x] In-browser drag-and-drop page (WebAssembly + WebCodecs; files never leave your device)
-- [ ] Optional upscaling of the clean result
+**Does it remove SynthID or C2PA?** No. Only the visible mark. SynthID is untouched, and a C2PA signature cannot stay
+valid after any re-encode.
+
+**My file was left untouched (exit code 2).** cleanplate did not find the mark with confidence and refuses to guess.
+That happens on clean files, very small or heavily re-compressed copies, and a mark on pure white. If you can see a
+mark, please [open an issue](https://github.com/dieplai/cleanplate/issues) with the file.
+
+**Windows says "Windows protected your PC".** The binary is not code-signed. Choose *More info → Run anyway*, or build
+from source.
+
+**Is my file uploaded anywhere?** No. The CLI works offline; the web page processes the file inside your browser tab.
+
+## 💖 Support
+
+If cleanplate saved you time, consider giving it a ⭐ on GitHub or sponsoring its development:
+
+<a href="https://github.com/sponsors/dieplai"><img src="https://img.shields.io/badge/Sponsor-dieplai-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor dieplai on GitHub" height="40"></a>
 
 ## License
 
 | Part | License |
 |---|---|
-| Code (`research/`, `tests/`, `docs/*.py`) | [MIT](./LICENSE) |
+| Code | [MIT](./LICENSE) |
 | Veo 720p / 1080p mark templates (extracted by cleanplate) | MIT |
 | Gemini diamond and legacy Veo templates | MIT, © Frédéric Guigand, from [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover); see [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) |
+| Browser page layout, mp4box, mp4-muxer | See [web/THIRD_PARTY.md](./web/THIRD_PARTY.md) |
 
-Method references: Dekel et al., *On the Effectiveness of Visible Watermarks*, CVPR 2017 · E2FGVI (CVPR 2022) and
-ProPainter (ICCV 2023) for flow-guided propagation · DIS optical flow (ECCV 2016) · Rudin–Osher–Fatemi TV (1992).
-
-Contributions are welcome: read [CONTRIBUTING.md](./CONTRIBUTING.md). Every claim of "better" needs a number from
-`research/score_gt.py` or `research/img_bench.py` and a visual sheet.
+Contributions are welcome: read [CONTRIBUTING.md](./CONTRIBUTING.md). A claim of "better" needs a number from
+`research/score_gt.py` or `research/img_bench.py` and a visual comparison.

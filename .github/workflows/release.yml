@@ -1,28 +1,53 @@
 name: Release
+# Tag vX.Y.Z to publish; run by hand (Actions tab) to build the archives without publishing.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, bin: cleanplate }
-          - { os: macos-latest, target: aarch64-apple-darwin, bin: cleanplate }
-          - { os: macos-13, target: x86_64-apple-darwin, bin: cleanplate }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, bin: cleanplate.exe }
+          # glibc 2.35+: Ubuntu 22.04+, Debian 12+, Fedora 36+
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, name: linux-x86_64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: windows-x86_64 }
+          # one binary for Apple Silicon and Intel
+          - { os: macos-latest, target: universal-apple-darwin, name: macos-universal }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: rustup target add ${{ matrix.target }}
-      - run: cargo build --release -p cleanplate --target ${{ matrix.target }}
-      - shell: bash
+      - name: build
+        shell: bash
         run: |
-          mkdir dist && cp target/${{ matrix.target }}/release/${{ matrix.bin }} dist/
-          cp LICENSE README.md dist/
-          cd dist && tar czf ../cleanplate-${{ github.ref_name }}-${{ matrix.target }}.tar.gz *
-      - uses: softprops/action-gh-release@v2
+          if [ "${{ matrix.target }}" = universal-apple-darwin ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+            cargo build --release --locked -p cleanplate --target aarch64-apple-darwin
+            cargo build --release --locked -p cleanplate --target x86_64-apple-darwin
+            mkdir -p target/universal-apple-darwin/release
+            lipo -create -output target/universal-apple-darwin/release/cleanplate \
+              target/aarch64-apple-darwin/release/cleanplate target/x86_64-apple-darwin/release/cleanplate
+          else
+            rustup target add ${{ matrix.target }}
+            cargo build --release --locked -p cleanplate --target ${{ matrix.target }}
+          fi
+      - name: package
+        shell: bash
+        run: |
+          d="cleanplate-${{ matrix.name }}"   # stable name: releases/latest/download/<d>.zip works
+          exe=cleanplate; [ "$RUNNER_OS" = Windows ] && exe=cleanplate.exe
+          mkdir "$d" && cp "target/${{ matrix.target }}/release/$exe" LICENSE README.md "$d/"
+          "./$d/$exe" --version
+          if [ "$RUNNER_OS" = Windows ]; then 7z a -bd "$d.zip" "$d" >/dev/null; echo "ASSET=$d.zip" >> "$GITHUB_ENV"
+          else tar czf "$d.tar.gz" "$d"; echo "ASSET=$d.tar.gz" >> "$GITHUB_ENV"; fi
+      - uses: actions/upload-artifact@v4
         with:
-          files: cleanplate-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
