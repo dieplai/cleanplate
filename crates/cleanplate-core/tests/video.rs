@@ -110,7 +110,10 @@ fn region_bounds_portrait_and_1080p() {
         let p = prepare_alpha(&det(name, x, y), -1, false);
         let r = region_bounds(&p, cw, ch);
         assert!(
-            r.x0.is_multiple_of(2) && r.y0.is_multiple_of(2) && r.w.is_multiple_of(2) && r.h.is_multiple_of(2),
+            r.x0.is_multiple_of(2)
+                && r.y0.is_multiple_of(2)
+                && r.w.is_multiple_of(2)
+                && r.h.is_multiple_of(2),
             "{name}: even-aligned"
         );
         assert!(
