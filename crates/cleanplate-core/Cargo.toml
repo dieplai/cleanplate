@@ -13,6 +13,7 @@ parallel = ["dep:rayon"]
 [dependencies]
 rayon = { version = "1", optional = true }
 png = "0.17"
+rustfft = "6"
 
 [dev-dependencies]
 npyz = "0.8"

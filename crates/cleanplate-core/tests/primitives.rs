@@ -103,3 +103,14 @@ fn match_template_fft_matches_direct() {
     let b = cleanplate_core::ncc::match_template_fft(&img, &tpl);
     assert!(max_err(&a, &b) <= 1e-4, "{}", max_err(&a, &b));
 }
+
+#[test]
+fn match_pair_equals_two_single_matches() {
+    let img = plane("in_b");
+    let plan = cleanplate_core::ncc::CorrPlan::new(&img);
+    let t1 = plane("tpl_b");
+    let t2 = plane("in_a").crop(3, 2, 15, 11);
+    let (a, b) = plan.match_pair(&t1, &t2);
+    assert!(max_err(&a, &plan.match_template(&t1)) <= 1e-4);
+    assert!(max_err(&b, &plan.match_template(&t2)) <= 1e-4);
+}

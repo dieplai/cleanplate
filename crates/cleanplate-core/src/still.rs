@@ -75,6 +75,38 @@ fn gray(ch: &[Plane; 3]) -> Plane {
     Plane { w: r.w, h: r.h, data: (0..r.data.len()).map(|i| 0.299 * r.data[i] + 0.587 * g.data[i] + 0.114 * b.data[i]).collect() }
 }
 
+/// What detection keeps of one correlation map: its first maximum and, per generator placement, the probe value and
+/// the position the reference would take (numpy argmax over the clipped 3×3 window, unravelled as 3×3).
+struct Summary {
+    max: f32,
+    x: usize,
+    y: usize,
+    probes: [Option<(f32, usize, usize)>; 3],
+}
+
+fn summarise(r: &Plane, cs: usize, size: usize) -> Summary {
+    let (max, x, y) = crate::ncc::max_loc(r);
+    let probes = PLACE.map(|k| {
+        let p = cs as i64 - size as i64 - (k * size as f64).round() as i64;
+        if p < 0 || p as usize >= r.w || p as usize >= r.h {
+            return None;
+        }
+        let (px, py) = (p as usize, p as usize);
+        let (wx0, wy0) = (px.saturating_sub(1), py.saturating_sub(1));
+        let (wx1, wy1) = ((px + 2).min(r.w), (py + 2).min(r.h));
+        let win: Vec<(usize, usize)> = (wy0..wy1).flat_map(|y| (wx0..wx1).map(move |x| (x, y))).collect();
+        let v = if py > 0 && px > 0 { win.iter().map(|&(x, y)| r.at(x, y)).fold(f32::NEG_INFINITY, f32::max) } else { r.at(px, py) };
+        let (mut bi, mut bv) = (0usize, f32::NEG_INFINITY);
+        for (idx, &(x, y)) in win.iter().enumerate() {
+            if r.at(x, y) > bv {
+                (bi, bv) = (idx, r.at(x, y));
+            }
+        }
+        Some((v, wx0 + bi % 3, wy0 + bi / 3))
+    });
+    Summary { max, x, y, probes }
+}
+
 /// Detection result: (ncc, shape index, size, x, y, known placement).
 fn detect(ch: &[Plane; 3], w: usize, h: usize, sh: &[Shape]) -> (f32, usize, usize, usize, usize, bool) {
     let cs = h.min(w).min(320.max(h.min(w) / 3));
@@ -85,15 +117,25 @@ fn detect(ch: &[Plane; 3], w: usize, h: usize, sh: &[Shape]) -> (f32, usize, usi
     let hp = Plane { w: cs, h: cs, data: g.data.iter().zip(&b.data).map(|(a, b)| a - b).collect() };
     let plan = CorrPlan::new(&hp);
     let jobs: Vec<(usize, usize)> = (0..sh.len()).flat_map(|i| (24..(200.min(cs / 2))).step_by(2).map(move |s| (i, s))).collect();
-    let maps: Vec<Plane> = crate::par_map(jobs.len(), |k| {
+    let tpl = |k: usize| {
         let (i, size) = jobs[k];
         let a = resized(&sh[i].s, size);
         let bl = gaussian_blur(&a, 3.0);
-        plan.match_template(&Plane { w: size, h: size, data: a.data.iter().zip(&bl.data).map(|(x, y)| x - y).collect() })
+        Plane { w: size, h: size, data: a.data.iter().zip(&bl.data).map(|(x, y)| x - y).collect() }
+    };
+    // two templates per FFT; keep only what the selection needs (the global max and the placement probes)
+    let pairs: Vec<Vec<Summary>> = crate::par_map(jobs.len().div_ceil(2), |p| {
+        let k = 2 * p;
+        if k + 1 < jobs.len() {
+            let (r1, r2) = plan.match_pair(&tpl(k), &tpl(k + 1));
+            vec![summarise(&r1, cs, jobs[k].1), summarise(&r2, cs, jobs[k + 1].1)]
+        } else {
+            vec![summarise(&plan.match_template(&tpl(k)), cs, jobs[k].1)]
+        }
     });
     let mut best: Option<(f32, f32, usize, usize, usize, usize, bool)> = None;
-    for (&(i, size), r) in jobs.iter().zip(&maps) {
-        let (sc, mx, my) = crate::ncc::max_loc(r);
+    for (&(i, size), sm) in jobs.iter().zip(pairs.iter().flatten()) {
+        let (sc, mx, my) = (sm.max, sm.x, sm.y);
         let (mr, mb) = ((cs - mx - size) as f64, (cs - my - size) as f64);
         let tol = 3f64.max(0.1 * size as f64);
         let known = PLACE.iter().any(|k| (mr - k * size as f64).abs() <= tol && (mb - k * size as f64).abs() <= tol);
@@ -101,31 +143,9 @@ fn detect(ch: &[Plane; 3], w: usize, h: usize, sh: &[Shape]) -> (f32, usize, usi
         if best.is_none_or(|b| key > b.0) {
             best = Some((key, sc, i, size, mx + cx0, my + cy0, known));
         }
-        for k in PLACE {
-            let p = cs as i64 - size as i64 - (k * size as f64).round() as i64;
-            if p < 0 || p as usize >= r.w || p as usize >= r.h {
-                continue;
-            }
-            let (px, py) = (p as usize, p as usize);
-            let (wx0, wy0) = (px.saturating_sub(1), py.saturating_sub(1));
-            let (wx1, wy1) = ((px + 2).min(r.w), (py + 2).min(r.h));
-            let v = if py > 0 && px > 0 {
-                (wy0..wy1).flat_map(|y| (wx0..wx1).map(move |x| (x, y))).map(|(x, y)| r.at(x, y)).fold(f32::NEG_INFINITY, f32::max)
-            } else {
-                r.at(px, py)
-            };
+        for &(v, x, y) in sm.probes.iter().flatten() {
             if v + 0.15 > best.unwrap().0 {
-                // numpy argmax over the clipped window, unravelled as if it were 3×3 (reference behaviour)
-                let ww = wx1 - wx0;
-                let (mut bi, mut bv) = (0usize, f32::NEG_INFINITY);
-                for (idx, (x, y)) in (wy0..wy1).flat_map(|y| (wx0..wx1).map(move |x| (x, y))).enumerate() {
-                    if r.at(x, y) > bv {
-                        (bi, bv) = (idx, r.at(x, y));
-                    }
-                }
-                let _ = ww;
-                let (yy, xx) = (bi / 3, bi % 3);
-                best = Some((v + 0.15, v, i, size, wx0 + xx + cx0, wy0 + yy + cy0, true));
+                best = Some((v + 0.15, v, i, size, x + cx0, y + cy0, true));
             }
         }
     }

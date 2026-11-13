@@ -1,53 +1,53 @@
-resources bench/veo31fast_flower_720p 4.06 s 311056 KB
+resources bench/veo31fast_flower_720p 4.05 s 311124 KB
 bench/veo31fast_flower_720p  (box 21x9+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     32.52       0.00    3.06   0.96
   marked(input)      17.77      14.75   85.77   1.70
   python             31.93       0.59    3.16   0.93
   rust               31.93       0.59    3.15   0.93
-resources bench/night_720p 3.94 s 310552 KB
+resources bench/night_720p 3.94 s 311428 KB
 bench/night_720p  (box 21x9+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     40.50       0.00    1.89   0.72
   marked(input)      15.25      25.25  119.66  21.81
   python             39.92       0.58    2.54   0.72
   rust               39.90       0.60    2.54   0.71
-resources bench/snow_720p 3.62 s 310836 KB
+resources bench/snow_720p 3.68 s 311452 KB
 bench/snow_720p  (box 21x9+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     45.53       0.00    1.11   0.84
   marked(input)      25.05      20.48   32.65  17.02
   python             41.53       4.00    2.12   1.25
   rust               41.71       3.82    2.18   1.25
-resources bench/teacup_static_720p 3.43 s 311032 KB
+resources bench/teacup_static_720p 3.35 s 311748 KB
 bench/teacup_static_720p  (box 21x9+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     38.84       0.00    3.81   0.69
   marked(input)      15.56      23.28  116.01  20.04
   python             36.94       1.91    5.04   0.92
   rust               36.87       1.97    5.06   0.92
-resources bench/kitchen_9x16 5.90 s 244052 KB
+resources bench/kitchen_9x16 5.84 s 243000 KB
 bench/kitchen_9x16  (box 21x9+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     41.89       0.00    5.43   0.77
   marked(input)      17.47      24.42  107.22  26.79
   python             36.15       5.74   16.05   2.37
   rust               36.14       5.75   16.03   2.38
-resources bench_diamond/veo31fast_flower_720p 9.01 s 311200 KB
+resources bench_diamond/veo31fast_flower_720p 8.44 s 311240 KB
 bench_diamond/veo31fast_flower_720p  (box 48x48+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     34.19       0.00    3.07   0.96
   marked(input)      19.17      15.01   63.93   1.05
   python             33.90       0.29    5.49   0.97
   rust               33.90       0.29    5.51   0.97
-resources bench_diamond/night_720p 8.30 s 310900 KB
+resources bench_diamond/night_720p 8.32 s 311588 KB
 bench_diamond/night_720p  (box 48x48+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     36.62       0.00    6.28   0.97
   marked(input)      18.00      18.61   71.95   1.39
   python             36.11       0.51    6.66   0.96
   rust               36.11       0.50    6.66   0.96
-resources bench_diamond/kitchen_9x16 17.62 s 626112 KB
+resources bench_diamond/kitchen_9x16 17.50 s 631856 KB
 bench_diamond/kitchen_9x16  (box 48x48+2px)
   method              PSNR  excess dB   ghost  sharp
   floor(no mark)     40.29       0.00    8.47   1.01
