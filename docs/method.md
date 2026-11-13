@@ -58,9 +58,15 @@ remover can beat it). See `docs/benchmark.md` for the full tables and `research/
 
 ## References
 
-- T. Dekel, M. Rubinstein, C. Liu, W. T. Freeman. *On the Effectiveness of Visible Watermarks.* CVPR 2017 — multi-image
-  matting of a consistent watermark.
-- Z. Li et al. *Towards an End-to-End Framework for Flow-Guided Video Inpainting* (E2FGVI), CVPR 2022, and
-  S. Zhou et al. *ProPainter*, ICCV 2023 — flow-guided pixel propagation (here without any learned hallucination).
-- T. Kroeger et al. *Fast Optical Flow using Dense Inverse Search* (DIS), ECCV 2016.
-- L. Rudin, S. Osher, E. Fatemi. *Nonlinear total variation based noise removal algorithms*, Physica D 1992.
+1. T. Dekel, M. Rubinstein, C. Liu, W. T. Freeman. *On the Effectiveness of Visible Watermarks.* CVPR 2017.
+2. T. Kroeger, R. Timofte, D. Dai, L. Van Gool. *Fast Optical Flow using Dense Inverse Search.* ECCV 2016.
+   [arXiv:1603.03590](https://arxiv.org/abs/1603.03590)
+3. H. Zimmer, A. Bruhn, J. Weickert. *Optic Flow in Harmony.* International Journal of Computer Vision 93(3), 2011.
+4. L. I. Rudin, S. Osher, E. Fatemi. *Nonlinear total variation based noise removal algorithms.* Physica D 60, 1992.
+5. Z. Li, C.-Z. Lu, J. Qin, C.-L. Guo, M.-M. Cheng. *Towards An End-to-End Framework for Flow-Guided Video
+   Inpainting.* CVPR 2022. [arXiv:2204.02663](https://arxiv.org/abs/2204.02663)
+6. S. Zhou, C. Li, K. C. K. Chan, C. C. Loy. *ProPainter: Improving Propagation and Transformer for Video Inpainting.*
+   ICCV 2023. [arXiv:2309.03897](https://arxiv.org/abs/2309.03897)
+7. J. P. Lewis. *Fast Normalized Cross-Correlation.* Vision Interface 1995.
+8. N. Sundaram, T. Brox, K. Keutzer. *Dense Point Trajectories by GPU-Accelerated Large Displacement Optical Flow.*
+   ECCV 2010.

@@ -3,7 +3,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ["web/**", ".github/workflows/pages.yml"]
+    paths: ["web/**", "LICENSE-THIRD-PARTY.md", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,6 +20,7 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - run: cp LICENSE LICENSE-THIRD-PARTY.md web/   # the page ships third-party code: its notices go with it
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web

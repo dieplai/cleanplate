@@ -10,7 +10,7 @@ useradd --system --no-create-home --shell /usr/sbin/nologin cleanplate
 mkdir -p /opt/cleanplate /var/www/cleanplate
 curl -sL https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-linux-x86_64.tar.gz \
   | tar xz -C /opt/cleanplate --strip-components=1
-cp deploy/server.py /opt/cleanplate/ && cp -r web/. /var/www/cleanplate/
+cp deploy/server.py /opt/cleanplate/ && cp -r web/. LICENSE LICENSE-THIRD-PARTY.md /var/www/cleanplate/
 cp deploy/cleanplate.service /etc/systemd/system/ && systemctl enable --now cleanplate
 cp deploy/nginx.conf /etc/nginx/sites-available/<your domain>   # edit server_name and certificate paths
 ```

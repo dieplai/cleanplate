@@ -39,7 +39,7 @@ jobs:
         run: |
           d="cleanplate-${{ matrix.name }}"   # stable name: releases/latest/download/<d>.zip works
           exe=cleanplate; [ "$RUNNER_OS" = Windows ] && exe=cleanplate.exe
-          mkdir "$d" && cp "target/${{ matrix.target }}/release/$exe" LICENSE README.md "$d/"
+          mkdir "$d" && cp "target/${{ matrix.target }}/release/$exe" LICENSE LICENSE-THIRD-PARTY.md README.md "$d/"
           "./$d/$exe" --version
           if [ "$RUNNER_OS" = Windows ]; then 7z a -bd "$d.zip" "$d" >/dev/null; echo "ASSET=$d.zip" >> "$GITHUB_ENV"
           else tar czf "$d.tar.gz" "$d"; echo "ASSET=$d.tar.gz" >> "$GITHUB_ENV"; fi

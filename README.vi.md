@@ -43,8 +43,8 @@ chính xác của logo ngay trên ảnh của bạn thay vì giả định.
 ## Mục lục
 
 [Kết quả](#kết-quả) · [Cài đặt](#cài-đặt) · [Cách dùng](#cách-dùng) · [Chất lượng tốt nhất](#để-có-chất-lượng-tốt-nhất) ·
-[Phương pháp](#phương-pháp) · [Hiệu năng](#hiệu-năng) · [Giới hạn](#giới-hạn-đã-biết) · [Hỏi đáp](#hỏi-đáp) ·
-[Ủng hộ](#-ủng-hộ) · [Giấy phép](#giấy-phép)
+[Phương pháp](#phương-pháp) · [Hiệu năng](#hiệu-năng) · [Giới hạn](#giới-hạn-đã-biết) · [Ủng hộ](#-ủng-hộ) ·
+[Giấy phép](#giấy-phép) · [Ghi công](#ghi-công) · [Tài liệu tham khảo](#tài-liệu-tham-khảo)
 
 ## Kết quả
 
@@ -72,7 +72,7 @@ Mọi thứ chạy trên máy bạn, dùng tất cả nhân CPU; file không đ�
 
 | Hệ điều hành | Tải về | Sau đó |
 |---|---|---|
-| **Windows** 10/11 (x64) | [cleanplate-windows-x86_64.zip](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-windows-x86_64.zip) | Giải nén; chạy `cleanplate.exe` từ terminal trong thư mục đó |
+| **Windows** 10/11 (x64) | [cleanplate-windows-x86_64.zip](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-windows-x86_64.zip) | Giải nén; chạy `cleanplate.exe` từ terminal trong thư mục đó (chưa ký số: nếu SmartScreen hỏi, chọn *More info → Run anyway*) |
 | **macOS** (Apple Silicon và Intel) | [cleanplate-macos-universal.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-macos-universal.tar.gz) | `tar xzf`; chạy một lần: `xattr -d com.apple.quarantine cleanplate` |
 | **Linux** x86_64 (glibc 2.35+) | [cleanplate-linux-x86_64.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-linux-x86_64.tar.gz) | `tar xzf`; tuỳ chọn chép `cleanplate` vào `~/.local/bin` |
 
@@ -126,36 +126,45 @@ Trên Windows, khi chạy trong thư mục vừa giải nén thì gõ `.\cleanpl
 
 ## Phương pháp
 
-```
-video ─► dò      khớp nhiều mẫu NCC tại vị trí quen thuộc của từng công cụ; không chắc thì từ chối
-      ─► cảnh    phát hiện điểm cắt cảnh; không bao giờ mượn điểm ảnh qua điểm cắt
-      ─► mỗi frame, mỗi điểm ảnh trong logo:
-            đảo lớp phủ trong không gian YUV gốc         I = (J − a·L) / (1 − a)
-            lấy cùng điểm cảnh từ ±K frame lân cận       optical flow DIS + kiểm tra xuôi/ngược
-            trọng số: điểm sạch ≫ điểm đảo (1 − a)², × độ tin cậy flow × suy giảm theo thời gian
-            loại ngoại lai thô, trung bình bền vững
-            MAP với TV có trọng số chỉ ở nơi chưa frame nào thấy nền
-      ─► dán     làm mềm viền, vào frame không bị đụng tới; mã hoá; giữ âm thanh và thông tin màu
+**Bài toán.** Công cụ AI chồng một logo tĩnh, bán trong suốt lên mọi frame rồi mới nén:
+`J_t = C((1 − α)·I_t + α·L)`, với độ phủ `α ≤ 0.55` ở mọi logo của Google đã đo và `L` là màu trắng. Đảo ngược trên
+từng frame, `Î_t = (J_t − α·L) / (1 − α)` [1], sẽ chia sai số nén của `C` cho `1 − α` (tới ×2,2 trên nét chữ): hình
+nhấp nháy, và trên nền tĩnh còn lại một vệt hình logo mà làm mờ hay AI vẽ lại chỉ che được chứ không xoá được.
 
-ảnh  ─► dò ✦ ở mọi kích thước ─► đo độ phủ, độ lệch dưới 1 pixel và kích thước trên chính ảnh ─► đảo chính xác
-     ─► TV thích ứng theo kết cấu cho ảnh JPEG / WebP
-```
+**Nhận xét then chốt.** Logo đứng yên trong khung hình còn cảnh thì chuyển động, nên một điểm bị che ở thời điểm *t*
+thường lộ ra hoàn toàn ở một thời điểm *s* khác. Cleanplate ước lượng mỗi điểm ảnh bị che từ chính những lần quan sát
+đó, tìm bằng optical flow, thay vì tự vẽ ra: ý tưởng lan truyền của video inpainting theo flow [5, 6], nhưng không có
+thành phần học máy nào.
 
-| Trường hợp | Cách xử lý |
-|---|---|
-| Cảnh chuyển động | Gom điểm ảnh thật từ frame lân cận theo optical flow, gộp theo nghịch đảo phương sai |
-| Cảnh tĩnh | Trung bình phép đảo trên cả cảnh + MAP TV có trọng số; λ chọn theo chuyển động đo được của từng cảnh |
-| Chuyển động nhanh | Loại ngoại lai so với phép đảo của chính frame; TV ở viền logo nơi không có điểm sạch |
-| Màu | YUV gốc theo vị trí lấy mẫu màu của H.264; không đổi qua RGB |
-| Ảnh | Đo độ phủ ngay trên ảnh (hai kiểu ✦, độ phủ 0.30 và 0.50); ảnh thu nhỏ qua kích thước lẻ |
-| Logo | Chữ Veo (720p, 1080p, bản cũ 68 px), Gemini ✦ 36 / 48 / 96 px, ảnh Flow (Nano Banana) |
-| An toàn | Không khớp đủ chắc thì không sửa file (14 / 14 file sạch bị từ chối); input quá nhỏ cũng bị từ chối |
+**Quy trình cho video.**
 
-Bằng chứng cho từng bước và các ý tưởng đã thử rồi loại: [`docs/method.md`](./docs/method.md).
+1. **Dò logo.** Tương quan chéo chuẩn hoá trừ trung bình [7] giữa các mẫu logo và trung bình theo thời gian của góc
+   dưới bên phải sau lọc thông cao, tại các vị trí và tỉ lệ quen thuộc của từng công cụ. Dưới ngưỡng tin cậy thì trả
+   lại file nguyên vẹn.
+2. **Cắt cảnh.** Phát hiện điểm cắt từ ảnh thu nhỏ của từng frame; không lần quan sát nào đi qua điểm cắt.
+3. **Đảo ngược trong YUV gốc** theo vị trí lấy mẫu màu của H.264 (kênh màu dùng α trung bình 2×2 và `L = 128`),
+   không đổi qua RGB.
+4. **Gom theo thời gian.** Với mỗi frame lân cận *s* trong khoảng ±K: optical flow Dense Inverse Search [2] với bước
+   tinh chỉnh biến phân có số hạng dữ liệu chuẩn hoá như [3], được điền lại bên trong logo từ vùng xung quanh, và
+   kiểm tra nhất quán xuôi–ngược [8]. Mỗi ứng viên có trọng số theo nghịch đảo phương sai nhiễu (quan sát sạch ≈ 1,
+   phép đảo `(1 − α)²`), độ tin cậy của flow và độ suy giảm theo thời gian.
+5. **Gộp bền vững.** Ứng viên lệch khỏi phép đảo của chính frame đó quá sai số của codec thì bị loại, riêng cho kênh
+   sáng và từng kênh màu, rồi gộp với trọng số bền vững.
+6. **Tinh chỉnh MAP.** Nơi không có quan sát sạch nào, dùng ước lượng biến phân toàn phần có trọng số [4],
+   `min_I Σ w·(I − μ)² + λ·TV(I)`, với λ chọn theo chuyển động đo được của từng cảnh (16 cho cảnh tĩnh, 0 cho cảnh
+   động) và trên viền mỏng của logo.
+7. **Ghép.** Vùng dựng lại được dán mềm viền vào frame không bị đụng tới; âm thanh và thông tin màu được giữ nguyên.
 
-Tham khảo: Dekel và cộng sự, *On the Effectiveness of Visible Watermarks*, CVPR 2017 · E2FGVI (CVPR 2022) và
-ProPainter (ICCV 2023) cho lan truyền theo flow · Kroeger và cộng sự, optical flow DIS, ECCV 2016 · TV
-Rudin–Osher–Fatemi, 1992.
+**Ảnh tĩnh.** Hình ✦ được dò ở mọi kích thước bằng cùng phép tương quan; độ phủ, độ lệch dưới một pixel và kích thước
+lẻ được *đo trên chính ảnh* (điểm đổi dấu của tương quan gradient có dấu qua viền logo), vì Google từng dùng cùng một
+hình ở α = 0.30 và 0.50. Lớp phủ được đảo chính xác [1]; ảnh JPEG và WebP có thêm một bước TV có trọng số thích ứng
+theo kết cấu [4], chỉ trên vùng logo.
+
+**An toàn.** Không khớp đủ chắc, độ phủ đo được dưới 0.15, hoặc ảnh quá nhỏ để chứa logo: không ghi gì cả (14 / 14
+file sạch bị từ chối).
+
+Đặc tả chạy được nằm trong [`research/`](./research); bằng chứng cho từng bước và các ý tưởng đã thử rồi loại nằm trong
+[`docs/method.md`](./docs/method.md) và [`docs/benchmark.md`](./docs/benchmark.md).
 
 ## Hiệu năng
 
@@ -180,20 +189,6 @@ hành) và [`cleanplate-cli`](./crates/cleanplate-cli) (đọc ghi file và ffmp
   logo cũng gần như vô hình.
 - Video trên trình duyệt cần Chrome hoặc Edge và file MP4 / MOV H.264; định dạng khác hãy dùng CLI.
 
-## Hỏi đáp
-
-**Có xoá SynthID hay C2PA không?** Không. Chỉ xoá logo hiển thị. SynthID giữ nguyên, còn chữ ký C2PA không thể còn hợp
-lệ sau bất kỳ lần nén lại nào.
-
-**File của tôi không bị sửa (mã thoát 2).** cleanplate không tìm thấy logo đủ chắc chắn nên không đoán bừa. Điều này
-xảy ra với file sạch, bản rất nhỏ hoặc bị nén lại nhiều lần, và logo trên nền trắng. Nếu bạn vẫn thấy logo, hãy
-[mở issue](https://github.com/dieplai/cleanplate/issues) kèm file.
-
-**Windows báo "Windows protected your PC".** File chạy chưa được ký số. Chọn *More info → Run anyway*, hoặc build từ
-mã nguồn.
-
-**File có bị tải lên đâu không?** Không. CLI chạy offline; trang web xử lý file ngay trong tab trình duyệt.
-
 ## 💖 Ủng hộ
 
 Nếu cleanplate giúp bạn tiết kiệm thời gian, hãy tặng dự án một ⭐ trên GitHub hoặc tài trợ để phát triển tiếp:
@@ -202,12 +197,43 @@ Nếu cleanplate giúp bạn tiết kiệm thời gian, hãy tặng dự án m�
 
 ## Giấy phép
 
-| Phần | Giấy phép |
-|---|---|
-| Mã nguồn | [MIT](./LICENSE) |
-| Mẫu logo Veo 720p / 1080p (cleanplate tự trích xuất) | MIT |
-| Mẫu ✦ Gemini và Veo bản cũ | MIT, © Frédéric Guigand, từ [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover); xem [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) |
-| Bố cục trang web, mp4box, mp4-muxer | Xem [web/THIRD_PARTY.md](./web/THIRD_PARTY.md) |
+MIT. Mã nguồn, mẫu logo, font và thư viện lấy từ các dự án khác, cùng giấy phép của chúng, được liệt kê trong
+[`LICENSE-THIRD-PARTY.md`](./LICENSE-THIRD-PARTY.md).
+
+## Ghi công
+
+Dự án được xây dựng trên nghiên cứu và mã nguồn từ:
+
+- [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover)
+  (Frédéric Guigand): các mẫu logo ✦ Gemini và chữ Veo bản cũ (MIT); công cụ `wmr` 1.17 của dự án là một mốc so sánh
+  trong benchmark
+- [allenk/GeminiWatermarkTool](https://github.com/allenk/GeminiWatermarkTool) (AllenK): đảo alpha-blend trên từng
+  frame kèm dò NCC; GWT 0.6.5 là mốc so sánh chính trong benchmark
+- [ishara-madu/gemini-watermark-remover](https://github.com/ishara-madu/gemini-watermark-remover) (Ishara
+  Madushanka): bố cục trang web và logo (MIT); phần lõi xoá logo được port lại chỉ để so sánh
+- [OpenCV](https://github.com/opencv/opencv): optical flow Dense Inverse Search và các phép xử lý ảnh cơ bản, viết lại
+  bằng Rust theo cách OpenCV hiện thực (Apache-2.0)
+- [rayon](https://github.com/rayon-rs/rayon), [RustFFT](https://github.com/ejmahler/RustFFT),
+  [image](https://github.com/image-rs/image), [jpeg-encoder](https://github.com/vstroebel/jpeg-encoder),
+  [clap](https://github.com/clap-rs/clap): xử lý song song, FFT, đọc ghi ảnh và giao diện dòng lệnh
+- [mp4box.js](https://github.com/gpac/mp4box.js), [mp4-muxer](https://github.com/Vanilagy/mp4-muxer),
+  [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker), font Plus Jakarta Sans (Tokotype): trang web
+- Các bài báo trong mục [Tài liệu tham khảo](#tài-liệu-tham-khảo): phương pháp được xây trên nền của chúng
 
 Mọi đóng góp đều được hoan nghênh: đọc [CONTRIBUTING.md](./CONTRIBUTING.md). Muốn khẳng định "tốt hơn" cần có số đo từ
 `research/score_gt.py` hoặc `research/img_bench.py` và hình so sánh trực quan.
+
+## Tài liệu tham khảo
+
+1. T. Dekel, M. Rubinstein, C. Liu, W. T. Freeman. *On the Effectiveness of Visible Watermarks.* CVPR 2017.
+2. T. Kroeger, R. Timofte, D. Dai, L. Van Gool. *Fast Optical Flow using Dense Inverse Search.* ECCV 2016.
+   [arXiv:1603.03590](https://arxiv.org/abs/1603.03590)
+3. H. Zimmer, A. Bruhn, J. Weickert. *Optic Flow in Harmony.* International Journal of Computer Vision 93(3), 2011.
+4. L. I. Rudin, S. Osher, E. Fatemi. *Nonlinear total variation based noise removal algorithms.* Physica D 60, 1992.
+5. Z. Li, C.-Z. Lu, J. Qin, C.-L. Guo, M.-M. Cheng. *Towards An End-to-End Framework for Flow-Guided Video
+   Inpainting.* CVPR 2022. [arXiv:2204.02663](https://arxiv.org/abs/2204.02663)
+6. S. Zhou, C. Li, K. C. K. Chan, C. C. Loy. *ProPainter: Improving Propagation and Transformer for Video Inpainting.*
+   ICCV 2023. [arXiv:2309.03897](https://arxiv.org/abs/2309.03897)
+7. J. P. Lewis. *Fast Normalized Cross-Correlation.* Vision Interface 1995.
+8. N. Sundaram, T. Brox, K. Keutzer. *Dense Point Trajectories by GPU-Accelerated Large Displacement Optical Flow.*
+   ECCV 2010.

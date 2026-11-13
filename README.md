@@ -44,7 +44,8 @@ measured: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 ## Contents
 
 [Results](#results) · [Install](#install) · [Usage](#usage) · [Best quality](#best-quality) · [Method](#method) ·
-[Performance](#performance) · [Limits](#known-limits) · [FAQ](#faq) · [Support](#-support) · [License](#license)
+[Performance](#performance) · [Limits](#known-limits) · [Support](#-support) · [License](#license) ·
+[Credits](#credits) · [References](#references)
 
 ## Results
 
@@ -72,7 +73,7 @@ result as the CLI; video is re-encoded as H.264.
 
 | System | Download | Then |
 |---|---|---|
-| **Windows** 10/11 (x64) | [cleanplate-windows-x86_64.zip](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-windows-x86_64.zip) | Unzip; run `cleanplate.exe` from a terminal in that folder |
+| **Windows** 10/11 (x64) | [cleanplate-windows-x86_64.zip](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-windows-x86_64.zip) | Unzip; run `cleanplate.exe` from a terminal in that folder (unsigned: if SmartScreen asks, *More info → Run anyway*) |
 | **macOS** (Apple Silicon and Intel) | [cleanplate-macos-universal.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-macos-universal.tar.gz) | `tar xzf` it; once: `xattr -d com.apple.quarantine cleanplate` |
 | **Linux** x86_64 (glibc 2.35+) | [cleanplate-linux-x86_64.tar.gz](https://github.com/dieplai/cleanplate/releases/latest/download/cleanplate-linux-x86_64.tar.gz) | `tar xzf` it; optionally move `cleanplate` into `~/.local/bin` |
 
@@ -126,35 +127,46 @@ On Windows type `.\cleanplate.exe` instead of `cleanplate` when you run it from 
 
 ## Method
 
-```
-video ─► detect   multi-template NCC at the generator's known placements; refuse when unsure
-      ─► shots    hard-cut detection; pixels are never borrowed across a cut
-      ─► per frame, per mark pixel:
-            invert the overlay in native YUV            I = (J − a·L) / (1 − a)
-            gather the same scene point from ±K frames  DIS optical flow + forward/backward check
-            weigh: clean pixels ≫ inversions (1 − a)², × flow confidence × time decay
-            veto gross outliers, robust mean
-            weighted-TV MAP only where no frame ever saw the background
-      ─► paste    feathered, into the untouched frame; encode; copy audio and colour tags
+**Problem.** A generator composites a static, semi-transparent mark onto every frame and then encodes it:
+`J_t = C((1 − α)·I_t + α·L)`, with opacity `α ≤ 0.55` for every Google mark measured and `L` white. Inverting a single
+frame, `Î_t = (J_t − α·L) / (1 − α)` [1], divides the codec error of `C` by `1 − α` (up to ×2.2 on the strokes):
+frames shimmer, and on static backgrounds a glyph-shaped residue remains that a spatial blur or a learned inpainter
+can only hide.
 
-still ─► detect the ✦ at any size ─► fit opacity, sub-pixel offset and size on the image ─► exact inversion
-      ─► texture-adaptive TV for JPEG / WebP inputs
-```
+**Observation.** The mark is fixed in the frame while the scene moves, so a point hidden at time *t* is usually seen
+unobstructed at some other time *s*. Cleanplate estimates every covered pixel from those observations, found with
+optical flow, instead of synthesising it: the propagation idea of flow-guided video inpainting [5, 6], without any
+learned component.
 
-| Case | How |
-|---|---|
-| Moving shots | Flow-guided gathering of real pixels from neighbouring frames, inverse-variance fusion |
-| Static shots | Inversion averaged over the shot + weighted-TV MAP; λ chosen per shot from the measured motion |
-| Fast motion | Gross-outlier veto against each frame's own inversion; TV on the mark's edge ring where no clean pixel landed |
-| Colour | Native YUV with H.264 chroma siting; no RGB round trip |
-| Stills | Opacity measured on the image (two ✦ renderings, opacity 0.30 and 0.50); resized copies via fractional size |
-| Marks | Veo text (720p, 1080p, legacy 68 px), Gemini ✦ 36 / 48 / 96 px, Flow (Nano Banana) stills |
-| Safety | Without a confident match the file is left untouched (14 / 14 clean inputs refused); tiny inputs refused |
+**Video pipeline.**
 
-Evidence for every step, and the ideas that were tried and rejected: [`docs/method.md`](./docs/method.md).
+1. **Detection.** Zero-mean normalised cross-correlation [7] between the mark templates and the temporal mean of the
+   high-passed bottom-right corner, at the generator's known placements and scales. Below a confidence floor the
+   input is returned untouched.
+2. **Shots.** Hard cuts from per-frame thumbnails; no observation crosses a cut.
+3. **Inversion in native YUV** with H.264 chroma siting (chroma uses the 2×2-averaged α and `L = 128`), avoiding an
+   RGB round trip.
+4. **Temporal gathering.** For every neighbour *s* within ±K frames: Dense Inverse Search optical flow [2] with a
+   variational refinement whose data terms are normalised as in [3], re-filled inside the mark from its
+   surroundings, validated by a forward–backward consistency check [8]. Each candidate is weighted by its inverse
+   noise variance (a clean observation ≈ 1, an inversion `(1 − α)²`), the flow confidence and a temporal decay.
+5. **Robust fusion.** Candidates that disagree with the frame's own inversion beyond the codec's error are vetoed,
+   separately for luma and each chroma plane, then robustly reweighted.
+6. **MAP refinement.** Where no clean observation exists, a weighted total-variation estimate [4],
+   `min_I Σ w·(I − μ)² + λ·TV(I)`, with λ set per shot from the measured motion (16 on static shots, 0 on moving
+   ones) and on the mark's edge ring.
+7. **Composition.** The rebuilt region is feathered into the untouched frame; audio and colour metadata are copied.
 
-References: Dekel et al., *On the Effectiveness of Visible Watermarks*, CVPR 2017 · E2FGVI (CVPR 2022) and ProPainter
-(ICCV 2023) for flow-guided propagation · Kroeger et al., DIS optical flow, ECCV 2016 · Rudin–Osher–Fatemi TV, 1992.
+**Stills.** The ✦ is detected at any size by the same correlation; its opacity, sub-pixel offset and fractional size
+are then *fitted on the image* (the zero crossing of the signed gradient correlation across the mark's edge), because
+Google has shipped the same shape at α = 0.30 and 0.50. The overlay is inverted exactly [1]; JPEG and WebP inputs
+get a texture-adaptive weighted-TV step [4] on the mark only.
+
+**Safety.** No confident match, a fitted opacity below 0.15, or an input too small to hold a mark: nothing is
+written (14 / 14 clean inputs refused).
+
+The executable specification is [`research/`](./research); evidence for every step and the ideas that were tried and
+rejected are in [`docs/method.md`](./docs/method.md) and [`docs/benchmark.md`](./docs/benchmark.md).
 
 ## Performance
 
@@ -179,20 +191,6 @@ benchmark harness.
   invisible.
 - Video in the browser needs Chrome or Edge and an H.264 MP4 / MOV; other containers and codecs: use the CLI.
 
-## FAQ
-
-**Does it remove SynthID or C2PA?** No. Only the visible mark. SynthID is untouched, and a C2PA signature cannot stay
-valid after any re-encode.
-
-**My file was left untouched (exit code 2).** cleanplate did not find the mark with confidence and refuses to guess.
-That happens on clean files, very small or heavily re-compressed copies, and a mark on pure white. If you can see a
-mark, please [open an issue](https://github.com/dieplai/cleanplate/issues) with the file.
-
-**Windows says "Windows protected your PC".** The binary is not code-signed. Choose *More info → Run anyway*, or build
-from source.
-
-**Is my file uploaded anywhere?** No. The CLI works offline; the web page processes the file inside your browser tab.
-
 ## 💖 Support
 
 If cleanplate saved you time, consider giving it a ⭐ on GitHub or sponsoring its development:
@@ -201,12 +199,42 @@ If cleanplate saved you time, consider giving it a ⭐ on GitHub or sponsoring i
 
 ## License
 
-| Part | License |
-|---|---|
-| Code | [MIT](./LICENSE) |
-| Veo 720p / 1080p mark templates (extracted by cleanplate) | MIT |
-| Gemini diamond and legacy Veo templates | MIT, © Frédéric Guigand, from [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover); see [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) |
-| Browser page layout, mp4box, mp4-muxer | See [web/THIRD_PARTY.md](./web/THIRD_PARTY.md) |
+MIT. Code, templates, fonts and libraries from other projects, with their licenses, are listed in
+[`LICENSE-THIRD-PARTY.md`](./LICENSE-THIRD-PARTY.md).
+
+## Credits
+
+Built on research and code from:
+
+- [froggeric/gemini-watermark-and-synthid-remover](https://github.com/froggeric/gemini-watermark-and-synthid-remover)
+  (Frédéric Guigand): the Gemini ✦ and legacy Veo mark templates (MIT); its `wmr` 1.17 is a baseline in the benchmark
+- [allenk/GeminiWatermarkTool](https://github.com/allenk/GeminiWatermarkTool) (AllenK): single-frame reverse
+  alpha-blend with NCC detection; GWT 0.6.5 is the main baseline in the benchmark
+- [ishara-madu/gemini-watermark-remover](https://github.com/ishara-madu/gemini-watermark-remover) (Ishara Madushanka):
+  layout of the browser page and its logo (MIT); its unblending core was ported for comparison only
+- [OpenCV](https://github.com/opencv/opencv): Dense Inverse Search optical flow and the image primitives,
+  re-implemented in Rust from OpenCV's implementation (Apache-2.0)
+- [rayon](https://github.com/rayon-rs/rayon), [RustFFT](https://github.com/ejmahler/RustFFT),
+  [image](https://github.com/image-rs/image), [jpeg-encoder](https://github.com/vstroebel/jpeg-encoder),
+  [clap](https://github.com/clap-rs/clap): parallelism, FFT, image codecs and the command line
+- [mp4box.js](https://github.com/gpac/mp4box.js), [mp4-muxer](https://github.com/Vanilagy/mp4-muxer),
+  [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker), Plus Jakarta Sans (Tokotype): the browser page
+- The papers in [References](#references): the method stands on them
 
 Contributions are welcome: read [CONTRIBUTING.md](./CONTRIBUTING.md). A claim of "better" needs a number from
 `research/score_gt.py` or `research/img_bench.py` and a visual comparison.
+
+## References
+
+1. T. Dekel, M. Rubinstein, C. Liu, W. T. Freeman. *On the Effectiveness of Visible Watermarks.* CVPR 2017.
+2. T. Kroeger, R. Timofte, D. Dai, L. Van Gool. *Fast Optical Flow using Dense Inverse Search.* ECCV 2016.
+   [arXiv:1603.03590](https://arxiv.org/abs/1603.03590)
+3. H. Zimmer, A. Bruhn, J. Weickert. *Optic Flow in Harmony.* International Journal of Computer Vision 93(3), 2011.
+4. L. I. Rudin, S. Osher, E. Fatemi. *Nonlinear total variation based noise removal algorithms.* Physica D 60, 1992.
+5. Z. Li, C.-Z. Lu, J. Qin, C.-L. Guo, M.-M. Cheng. *Towards An End-to-End Framework for Flow-Guided Video
+   Inpainting.* CVPR 2022. [arXiv:2204.02663](https://arxiv.org/abs/2204.02663)
+6. S. Zhou, C. Li, K. C. K. Chan, C. C. Loy. *ProPainter: Improving Propagation and Transformer for Video Inpainting.*
+   ICCV 2023. [arXiv:2309.03897](https://arxiv.org/abs/2309.03897)
+7. J. P. Lewis. *Fast Normalized Cross-Correlation.* Vision Interface 1995.
+8. N. Sundaram, T. Brox, K. Keutzer. *Dense Point Trajectories by GPU-Accelerated Large Displacement Optical Flow.*
+   ECCV 2010.
