@@ -33,6 +33,9 @@ ap.add_argument("--no-edge-tv", dest="edge_tv", action="store_false",
                 help="disable the TV prior on the mark's edge ring where no clean evidence landed (on by default: removes the "
                      "hairline outline in fast motion; costs <=0.25 dB on slow textured GT clips)")
 ap.add_argument("--chroma-siting", default="left", choices=["left", "center"])
+ap.add_argument("--opaque", type=int, default=-1,
+                help="treat the mark as fully covering its (dilated by N px) support: no inversion, rebuild from other "
+                     "frames + TV fill. -1 = auto (on for marks whose look depends on the background, e.g. Flow 1080p)")
 ap.add_argument("--interp", default="cubic", choices=["cubic", "lanczos"], help="warp interpolation for luma candidates")
 ap.add_argument("--deghost", action="store_true",
                 help="research only: shape-basis static-ghost subtraction. OFF by default — it mistakes a real background/fill "
@@ -105,7 +108,7 @@ ncc, mname, mscale, (mx, my), A = best
 # generators stamp marks at fixed placements; a match exactly there is far less likely to be chance, so a faint mark
 # (white text on a bright, busy background — real teacup clip scored 0.55) may pass a lower bar. (right, bottom) margins
 # in pixels at the template's native scale.
-KNOWN = {"veo-small-720p.png": [(16, 16)], "gemini-diamond-48.png": [(72, 72), (96, 96)],
+KNOWN = {"veo-small-720p.png": [(16, 16)], "veo-small-1080p.png": [(24, 24)], "gemini-diamond-48.png": [(72, 72), (96, 96)],
          "gemini-diamond-96.png": [(64, 64), (192, 192)], "gemini-diamond-36.png": [(32, 32)],
          "veo-legacy-68.png": [(17, 18)]}
 mr, mb = CW - (mx + A.shape[1]), CH - (my + A.shape[0])
@@ -116,6 +119,23 @@ log(f"detected {mname} x{mscale:.2f} at ({mx + cx0},{my + cy0}) ncc={ncc:.3f}"
     f"{' (known placement)' if at_known else ''}, threshold {floor_:.2f}")
 if ncc < floor_:
     sys.exit(f"no mark found with confidence (best ncc {ncc:.2f} < {floor_:.2f}) — leaving the video untouched")
+# Flow's 1080p download is an AI upscale of the marked 720p: the mark is re-drawn per background (opaque white on
+# dark, white + dark ringing on bright; implied-alpha corr with the template 0.83 vs 0.24). No fixed alpha fits, so
+# the stroke support is treated as unknown pixels.
+OPAQUE = {"veo-small-1080p.png": 1}
+# on bright backgrounds the re-drawn 1080p mark can match the 1.5x 720p glyph better; at its known placement it is the
+# same mark, so use the native 1080p support
+if os.path.basename(mname) == "veo-small-720p.png" and abs(mscale - 1.5) < 0.01 and at_known:
+    mname = "google/veo-small-1080p.png"
+    A = cv2.imread(os.path.join(args.marks, mname), cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
+    ys, xs = np.where(A > 0); A = A[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    mx, my = CW - 24 - A.shape[1], CH - 24 - A.shape[0]
+    log(f"1.5x 720p glyph at the Flow 1080p placement -> {mname} at ({mx + cx0},{my + cy0})")
+op = args.opaque if args.opaque >= 0 else OPAQUE.get(os.path.basename(mname), -1)
+if op >= 0:
+    A = np.pad(A, op + 1); mx -= op + 1; my -= op + 1
+    A = 0.95 * cv2.dilate((A > 0.08).astype(np.uint8), np.ones((2 * op + 1, 2 * op + 1), np.uint8)).astype(np.float32)
+    log(f"opaque mode: support dilated {op}px, {int((A > 0).sum())} px rebuilt without inversion")
 th, tw = A.shape
 
 # working region: mark + context margin for motion estimation, even-aligned, inside the corner crop
@@ -152,6 +172,13 @@ def harmonic(F, hole, iters=150):
         Pd = np.pad(G, 1, mode="edge")
         G[hole] = ((Pd[:-2, 1:-1] + Pd[2:, 1:-1] + Pd[1:-1, :-2] + Pd[1:-1, 2:]) / 4)[hole]
     return G
+
+if op >= 0:
+    # no usable inversion under an opaque mark: each frame's own estimate is a harmonic fill from its surroundings
+    # (sane values for flow + a weak fallback; clean pixels from other frames win wherever they exist)
+    hole_y, hole_c = Ay > 0.5, Ac > 0.3
+    Ry = np.array([harmonic(f, hole_y) for f in Jy]); Ru = np.array([harmonic(f, hole_c) for f in Ju])
+    Rv = np.array([harmonic(f, hole_c) for f in Jv])
 
 def tv_refine(mu, w, mask, lam, iters=300, eps=1.0):
     """MAP refinement: min sum w (I-mu)^2 + lam*TV_eps(I) over mask pixels (gradient descent).
@@ -252,7 +279,7 @@ for (s0, s1) in shots:
             # thin ring along the mark's edges, only where no clean observation landed (fast motion): the codec smears
             # the overlay's edge each frame differently, leaving a hairline outline after inversion
             clean_sum = (Wr * np.array(cl)).sum(0) - (Ay < 0.02) * Wr[0]
-            lam_px = np.maximum(lam, 16.0 * (EDGE & (clean_sum < 0.5))).astype(np.float32)
+            lam_px = np.maximum(lam, 16.0 * ((M if op >= 0 else EDGE) & (clean_sum < 0.5))).astype(np.float32)
         Oy[t] = tv_refine(mu, conf, M, lam_px) if np.max(lam_px) > 0 else np.where(M, mu, Oy[t])
         # chroma: same geometry weights, but its OWN anchor and robust step (colour errors are invisible to luma)
         Wg, Mc, confc = Wt[:, ::2, ::2], M[::2, ::2], conf[::2, ::2]
@@ -265,7 +292,8 @@ for (s0, s1) in shots:
                 dev = np.abs(Cc - muc); sc = np.median(dev, 0) * 1.4826 + 1.5
                 Wcr = Wc * np.minimum(1.0, 1.5 * sc / (dev + 1e-6))
                 muc = (Wcr * Cc).sum(0) / (Wcr.sum(0) + 1e-6)
-            O[t] = tv_refine(muc, confc, Mc, lam) if lam > 0 else np.where(Mc, muc, O[t])
+            lam_c = lam_px[::2, ::2] if (op >= 0 and args.edge_tv) else lam   # opaque: no inversion to fall back on
+            O[t] = tv_refine(muc, confc, Mc, lam_c) if np.max(lam_c) > 0 else np.where(Mc, muc, O[t])
     share = clean_w / max(tot_w, 1e-6)
     # static leftover (codec ghost) — only matters when the shot relied on inversions, i.e. little clean data
     if share < 0.5 and L_ >= 8 and args.deghost:

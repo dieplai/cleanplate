@@ -79,3 +79,30 @@ Clean clips (the five floors) are refused: best match 0.34–0.44 against a bar 
 (0.45 at a generator's known placement). All eight marked real clips are detected (0.55–0.98, all at known
 placements). An earlier, looser detector (six free scales) accepted two clean clips at ncc 0.50–0.52 — the reason
 for scale restriction and placement priors.
+
+## Round 2: film-style scenes, a Gemini-app clip, Flow 1080p (2026-11-13)
+
+Four new Veo 3.1 Fast clips (static dinner dialogue, very slow drone push-in, static sidewalk with passers-by, rain
+on a window with heavy grain), one Gemini-app video (✦ 48 on a static wooden cabinet) and Flow's 1080p downloads of
+three of them. All detected at known placements (ncc 0.72–0.98). Sheets: `out/round2/sheet_*.png`, zoomed videos:
+`out/compare2/`.
+
+| Clip | GWT | cleanplate |
+|---|---|---|
+| Gemini app, ✦ on a static cabinet (720p) | clean frames; faint diamond outline in the time-averaged ghost map | clean; no diamond shape in the ghost map |
+| Dinner / sidewalk / hills / rain (720p) | clean | clean; sidewalk crack line stays continuous |
+| Dinner, mark on black letterbox (1080p) | **"Veo" clearly visible** | clean |
+| Sidewalk, bright static concrete (1080p) | **"Veo" clearly visible** | mark gone; one or two faint fill smudges |
+| Hills, moving grass (1080p) | faint "e" remains | clean (83 % of the mark rebuilt from clean pixels) |
+
+**Flow 1080p is not the 720p mark scaled up.** It is an AI upscale of the *marked* 720p video: on dark backgrounds
+the glyph becomes near-opaque white (alpha ≈ 1, 1–3 px strokes), on bright ones it gains dark ringing. Alpha implied
+by a known background matches the extracted 1080p template on a dark clip (corr 0.83) but not on a bright one (0.24),
+so no fixed alpha can be inverted. cleanplate detects the 1080p mark (`veo-small-1080p.png`, extracted from the black
+letterbox of the dinner clip; also accepts the 1.5× 720p glyph at the same placement) and switches to **opaque mode**:
+the stroke support (+1 px) is treated as unknown — each frame's own estimate is a harmonic fill, clean pixels from
+other frames win wherever the scene moved, TV-MAP fills the rest. A first version that kept the a = 0.95 inversion as
+a weak candidate left white specks and a dark glyph-shaped fill (values ×20 the codec error) — replaced.
+
+Advice for film work: if you can choose, **download 720p and clean that**; the 720p mark is a true alpha overlay and
+comes out at the ground-truth floor on moving shots. Upscale after cleaning if you need 1080p.

@@ -52,6 +52,8 @@ remover can beat it). See `docs/benchmark.md` for the full tables and `research/
 - A static scene point hidden under the mark for the whole shot is never observed clean; its detail is whatever
   the codec kept. cleanplate returns the most likely image (TV-MAP), not the lost detail.
 - Non-rigid motion that flow cannot follow (steam, water) gets low flow confidence and falls back to inversions.
+- Flow's 1080p download re-draws the mark through an AI upscaler, so it is not an alpha overlay. cleanplate rebuilds
+  those strokes as unknown pixels (opaque mode). Static scenes then rely on spatial fill: prefer the 720p download.
 - Only visible marks. SynthID and C2PA provenance are not touched, by design.
 
 ## References
