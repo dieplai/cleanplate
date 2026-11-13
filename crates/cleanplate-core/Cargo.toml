@@ -1,6 +1,6 @@
 [package]
 name = "cleanplate-core"
-version = "0.1.0"
+version = "1.0.0"
 description = "Pure-compute core of cleanplate: remove visible generator marks from video and stills"
 edition.workspace = true
 rust-version.workspace = true
