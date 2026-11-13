@@ -1,4 +1,6 @@
 //! cleanplate core: every algorithm on in-memory planes. No file, process or OS access (wasm32-ready).
+// pixel loops index several parallel buffers (candidates, weights, planes) by the same index on purpose
+#![allow(clippy::needless_range_loop)]
 pub mod detect;
 pub mod fft;
 pub mod filter;
