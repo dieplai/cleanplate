@@ -1,9 +1,9 @@
-//! Video path: pass 1 (corner crops + thumbnails), detection, rebuild, pass 2 (paste + encode).
+//! Video path: ffmpeg decode -> core::session (pass 1, detect, rebuild, paste) -> ffmpeg encode.
 use crate::ffmpeg::{encoder_args, encoders, pick_codec, probe, Decoder};
 use anyhow::{Context, Result};
-use cleanplate_core::detect::{detect_video, sample_step, shot_cuts};
-use cleanplate_core::geom::{remap, resize_area, Border, Interp};
-use cleanplate_core::video::{place_alpha, prepare_alpha, rebuild, region_bounds, Guide, Params};
+use cleanplate_core::geom::{remap, Border, Interp};
+use cleanplate_core::session::{Rect, Session};
+use cleanplate_core::video::{Guide, Params};
 use cleanplate_core::Plane;
 use std::io::Write;
 use std::path::Path;
@@ -30,10 +30,6 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     }
     let p = probe(inp)?;
     let (w, h) = (p.w, p.h);
-    anyhow::ensure!(
-        w % 2 == 0 && h % 2 == 0,
-        "odd frame size {w}x{h} is not supported (4:2:0 needs even dimensions)"
-    );
     // resolve the encoder before the expensive work so a missing one fails fast
     let avail = encoders();
     let codec = pick_codec(&o.codec, out, |e| avail.iter().any(|a| a == e))?;
@@ -41,98 +37,29 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         "{w}x{h} @ {}, audio={}, colour={:?}",
         p.fps, p.has_audio, p.color
     ));
-    let (cw, ch) = ((w / 2).min(480) & !1, (h / 2).min(320) & !1);
-    let (cx0, cy0) = (w - cw, h - ch);
-    // pass 1: keep only the bottom-right corner (Y, U, V) and a 64×36 luma thumbnail per frame
-    let (mut cy, mut cu, mut cv, mut thumbs) = (vec![], vec![], vec![], vec![]);
+    let mut s = Session::new(w, h).map_err(anyhow::Error::msg)?;
+    // pass 1
     for f in Decoder::open(inp, w, h)? {
-        let (y, rest) = f.split_at(w * h);
-        let (u, v) = rest.split_at(w * h / 4);
-        let crop = |pl: &[u8], pw: usize, x0: usize, y0: usize, cw: usize, ch: usize| -> Vec<u8> {
-            (0..ch)
-                .flat_map(|r| {
-                    pl[(y0 + r) * pw + x0..(y0 + r) * pw + x0 + cw]
-                        .iter()
-                        .copied()
-                })
-                .collect()
-        };
-        cy.push(crop(y, w, cx0, cy0, cw, ch));
-        cu.push(crop(u, w / 2, cx0 / 2, cy0 / 2, cw / 2, ch / 2));
-        cv.push(crop(v, w / 2, cx0 / 2, cy0 / 2, cw / 2, ch / 2));
-        thumbs.push(resize_area(&Plane::from_u8(w, h, y), 64, 36));
+        s.push(&f);
     }
-    let n = cy.len();
+    let n = s.frames();
     anyhow::ensure!(
         n > 0,
         "no video frames could be decoded from {}",
         inp.display()
     );
+    let (cw, ch) = s.corner();
     log(format!("pass 1: {n} frames, corner crop {cw}x{ch}"));
-    let shots = shot_cuts(&thumbs);
-    log(format!("shots: {} -> {:?}", shots.len(), shots));
-    // only the frames detection samples become f32 (≈120), not the whole clip
-    let corners: Vec<Plane> = cy
-        .iter()
-        .step_by(sample_step(n))
-        .map(|c| Plane::from_u8(cw, ch, c))
-        .collect();
-    let refs: Vec<&Plane> = corners.iter().collect();
-    let det = match detect_video(&refs, w, h, o.min_ncc) {
-        Ok(d) => d,
+    let mut logf = |m: String| log(m);
+    let found = match s.detect(o.min_ncc, o.opaque, o.guide.is_some(), &mut logf) {
+        Ok(f) => f,
         Err(r) => {
             println!("{r} — leaving the video untouched");
             return Ok(2);
         }
     };
-    log(format!(
-        "detected {} x{:.2} at ({},{}) ncc={:.3}{}",
-        det.mark.name,
-        det.scale,
-        det.x + cx0,
-        det.y + cy0,
-        det.ncc,
-        if det.at_known {
-            " (known placement)"
-        } else {
-            ""
-        }
-    ));
-    drop(corners);
-    let prep = prepare_alpha(&det, o.opaque, o.guide.is_some());
-    if prep.op >= 0 {
-        log(format!("opaque mode: support dilated {}px", prep.op));
-    }
-    let r = region_bounds(&prep, cw, ch);
-    let ay = place_alpha(&prep, &r);
-    let region = |c: &[u8], pw: usize, x0: usize, y0: usize, rw: usize, rh: usize| -> Plane {
-        Plane {
-            w: rw,
-            h: rh,
-            data: (0..rh)
-                .flat_map(|yy| {
-                    c[(y0 + yy) * pw + x0..(y0 + yy) * pw + x0 + rw]
-                        .iter()
-                        .map(|&v| v as f32)
-                })
-                .collect(),
-        }
-    };
-    let jy: Vec<Plane> = cy
-        .iter()
-        .map(|c| region(c, cw, r.x0, r.y0, r.w, r.h))
-        .collect();
-    let ju: Vec<Plane> = cu
-        .iter()
-        .map(|c| region(c, cw / 2, r.x0 / 2, r.y0 / 2, r.w / 2, r.h / 2))
-        .collect();
-    let jv: Vec<Plane> = cv
-        .iter()
-        .map(|c| region(c, cw / 2, r.x0 / 2, r.y0 / 2, r.w / 2, r.h / 2))
-        .collect();
-    drop((cy, cu, cv));
-    let guide = match (&o.guide, prep.op >= 0) {
-        (Some(g), true) => Some(load_guide(g, w, cx0 + r.x0, cy0 + r.y0, r.w, r.h, n)?),
+    let guide = match (&o.guide, found.opaque) {
+        (Some(g), true) => Some(load_guide(g, w, found.rect, n)?),
         _ => None,
     };
     let mut params = o.params.clone();
@@ -140,13 +67,7 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         None | Some("tv") | Some("unknown") => 235.0,
         _ => 255.0,
     };
-    let rb = rebuild(&jy, &ju, &jv, &ay, prep.op, &shots, &params, guide.as_ref());
-    for s in &rb.shot_logs {
-        log(format!(
-            "shot {}-{}: motion={:.2}px K={} lambda={:.1} clean-share={:.2}",
-            s.s0, s.s1, s.motion, s.k, s.lam, s.clean_share
-        ));
-    }
+    s.rebuild(&params, guide.as_ref(), &mut logf);
     // pass 2: paste the rebuilt region (feathered) into the untouched frames and encode
     let mut enc = Command::new("ffmpeg")
         .args(encoder_args(&codec, inp, out, &p))
@@ -155,16 +76,11 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         .spawn()
         .context("running ffmpeg encoder")?;
     let mut sink = enc.stdin.take().context("encoder stdin")?;
-    let (x0, y0) = (cx0 + r.x0, cy0 + r.y0);
     // never leave a partial or short file behind: any failure removes the output
     let written = (|| -> Result<usize> {
         let mut count = 0;
         for (t, mut f) in Decoder::open(inp, w, h)?.enumerate().take(n) {
-            let (yp, rest) = f.split_at_mut(w * h);
-            let (up, vp) = rest.split_at_mut(w * h / 4);
-            paste(yp, w, x0, y0, &rb.y[t], &rb.feather_y);
-            paste(up, w / 2, x0 / 2, y0 / 2, &rb.u[t], &rb.feather_c);
-            paste(vp, w / 2, x0 / 2, y0 / 2, &rb.v[t], &rb.feather_c);
+            s.paste(t, &mut f);
             sink.write_all(&f)?;
             count += 1;
         }
@@ -191,28 +107,9 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     Ok(0)
 }
 
-/// feather·O + (1 − feather)·source, rounded like the reference (+0.5 then truncation).
-fn paste(plane: &mut [u8], pw: usize, x0: usize, y0: usize, o: &Plane, feather: &Plane) {
-    for yy in 0..o.h {
-        for xx in 0..o.w {
-            let i = (y0 + yy) * pw + x0 + xx;
-            let f = feather.at(xx, yy);
-            let v = f * o.at(xx, yy) + (1.0 - f) * plane[i] as f32 + 0.5;
-            plane[i] = v.clamp(0.0, 255.0) as u8;
-        }
-    }
-}
-
 /// Guide clip (same clip, lower resolution, already cleaned) resampled onto the region grid, frame for frame.
-fn load_guide(
-    path: &Path,
-    w: usize,
-    rx: usize,
-    ry: usize,
-    rw: usize,
-    rh: usize,
-    n: usize,
-) -> Result<Guide> {
+fn load_guide(path: &Path, w: usize, r: Rect, n: usize) -> Result<Guide> {
+    let (rx, ry, rw, rh) = (r.x, r.y, r.w, r.h);
     let gp = probe(path)?;
     let (gw, gh) = (gp.w, gp.h);
     anyhow::ensure!(

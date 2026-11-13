@@ -2,21 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- GitHub Pages cannot send COOP/COEP headers; this service worker adds them so the multi-threaded build can run -->
+  <script src="coi-serviceworker.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>cleanplate · visible AI mark remover</title>
+  <title>Cleanplate · visible AI mark remover</title>
   <meta name="description" content="Remove the visible Gemini / Nano Banana / Veo mark from your images and videos, in your browser. Exact un-blending, bit-identical to the cleanplate CLI. Your image never leaves your device." />
   <link rel="icon" type="image/png" href="assets/favicon.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="app-header">
     <div class="header-container">
-      <a href="./" class="brand" title="cleanplate">
+      <a href="./" class="brand" title="Cleanplate">
         <img class="brand-logo" src="assets/logo.png" alt="" width="38" height="38" />
-        <span class="brand-title">cleanplate</span>
+        <span class="brand-title">Cleanplate</span>
       </a>
       <nav class="nav-menu" aria-label="Main navigation">
         <a href="#panel-image" class="nav-link" data-tab="image">Image</a>
@@ -34,7 +34,7 @@
       <p class="hero-eyebrow">Open source · MIT · Rust → WebAssembly</p>
       <h1 class="hero-title">Remove the visible AI mark.<br /><span class="hero-accent">Keep every other pixel.</span></h1>
       <p class="hero-description">
-        cleanplate finds the Gemini / Nano Banana diamond or the Veo mark, measures it on <strong>your</strong> file and
+        Cleanplate finds the Gemini / Nano Banana diamond or the Veo mark, measures it on <strong>your</strong> file and
         un-blends it exactly; on video it recovers the hidden pixels from neighbouring frames. Everything runs in this
         tab — nothing is uploaded.
       </p>
@@ -69,12 +69,12 @@
       <div id="busy" class="busy hidden" role="status">
         <div class="spinner"></div>
         <p class="busy-title">Cleaning <span id="busy-name"></span>…</p>
-        <p class="busy-sub"><span id="busy-time">0.0</span> s · single-threaded WebAssembly, large images take a few seconds</p>
+        <p class="busy-sub"><span id="busy-time">0.0</span> s · uses all your CPU cores when the browser allows it</p>
       </div>
 
       <div id="refused" class="notice hidden">
         <p class="notice-title">No mark found with confidence — image left untouched</p>
-        <p class="notice-sub">cleanplate only acts when it is sure the known mark is there. If you see one, please open an issue with the image.</p>
+        <p class="notice-sub">Cleanplate only acts when it is sure the known mark is there. If you see one, please open an issue with the image.</p>
         <pre id="refused-log" class="log"></pre>
         <button class="btn btn-secondary js-again" type="button">Try another image</button>
       </div>
@@ -94,7 +94,7 @@
             <figure class="zoom-card"><figcaption class="ok">Mark area · cleaned</figcaption><canvas id="zoom-after" width="220" height="220"></canvas></figure>
           </div>
         </div>
-        <details class="log-box"><summary>What cleanplate measured</summary><pre id="result-log" class="log"></pre></details>
+        <details class="log-box"><summary>What Cleanplate measured</summary><pre id="result-log" class="log"></pre></details>
         <div class="actions">
           <button class="btn btn-secondary js-again" type="button">Clean another</button>
           <button id="btn-download" class="btn btn-primary" type="button">Download PNG</button>
@@ -115,7 +115,7 @@
         <div class="spinner"></div>
         <p class="busy-title" id="v-stage">Starting…</p>
         <div class="progress"><span id="v-bar"></span></div>
-        <p class="busy-sub"><span id="v-time">0</span> s · single-threaded in the browser; the CLI is 5–10× faster</p>
+        <p class="busy-sub"><span id="v-time">0</span> s · uses all your CPU cores when the browser allows it</p>
       </div>
 
       <div id="v-refused" class="notice hidden">
@@ -134,7 +134,7 @@
           <figure><figcaption>Mark area · original (zoomed)</figcaption><canvas id="vz-before" width="480" height="270"></canvas></figure>
           <figure><figcaption class="ok">Mark area · cleaned (zoomed)</figcaption><canvas id="vz-after" width="480" height="270"></canvas></figure>
         </div>
-        <details class="log-box"><summary>What cleanplate measured</summary><pre id="v-log" class="log"></pre></details>
+        <details class="log-box"><summary>What Cleanplate measured</summary><pre id="v-log" class="log"></pre></details>
         <div class="actions">
           <button class="btn btn-secondary js-v-again" type="button">Clean another</button>
           <button id="v-play" class="btn btn-secondary" type="button">Play both</button>
@@ -147,7 +147,7 @@
   </main>
 
   <footer class="app-footer">
-    <p>cleanplate · MIT · <a href="https://github.com/dieplai/cleanplate">github.com/dieplai/cleanplate</a></p>
+    <p>Cleanplate · MIT · <a href="https://github.com/dieplai/cleanplate">github.com/dieplai/cleanplate</a></p>
     <p class="muted">Not affiliated with or endorsed by Google. Gemini and Veo are trademarks of Google LLC.</p>
     <p class="muted">Page layout adapted from <a href="https://github.com/ishara-madu/gemini-watermark-remover">ishara-madu/gemini-watermark-remover</a> (MIT, © 2026 Ishara Madushanka).</p>
   </footer>

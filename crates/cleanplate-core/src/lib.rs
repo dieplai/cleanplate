@@ -9,6 +9,7 @@ pub mod geom;
 pub mod marks;
 pub mod ncc;
 pub mod plane;
+pub mod session;
 pub mod still;
 pub mod tv;
 pub mod video;
