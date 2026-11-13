@@ -1,7 +1,7 @@
 # Third-party notices (web/)
 
 ## Page layout — ishara-madu/gemini-watermark-remover
-Header, hero, decorative frames, tabs, card, dropzone and button styles in `style.css`/`index.html` are adapted from https://github.com/ishara-madu/gemini-watermark-remover (commit 5cd2ade). Only layout and styles are adapted; none of its scripts, images or logo are used.
+Header, hero, decorative frames, tabs, card, dropzone and button styles in `style.css`/`index.html` are adapted from https://github.com/ishara-madu/gemini-watermark-remover (commit 5cd2ade). Layout and styles are adapted, and its sparkle logo (`assets/logo.png`, `assets/favicon.png`, resized from its `assets/logo.webp`) is used; none of its scripts are used. The sparkle shape resembles Google's Gemini mark; cleanplate is not affiliated with Google.
 
 ```
 MIT License
