@@ -146,3 +146,22 @@ wmr: 0/4 detected. Sheet: `out/img_flow/cmp.png`.
 Sent as photos to Zalo "My Documents" (HD mode: size kept, re-encoded JPEG ≈ q85) and downloaded back.
 cleanplate: 4/4 removed, measured opacity 0.28–0.30 (same as on the originals). GWT: same failures as on the originals
 (2 skipped, wrong spot on the fruit, outline on the cat). wmr: 0/4. Sheet: `out/img_zalo/cmp.png`.
+
+## ishara-madu/gemini-watermark-remover (in-browser, single-frame unblending)
+
+Its processing core (`main.js`) was ported 1:1 to `research/compare/ishara_port.py` and run on the same ground truth
+(automatic detection path; the web page also offers manual sliders). It shares GWT's 0.50 diamond capture (`bg_96`)
+scaled by a fixed preset gain, detects on a 4-px grid, has no refusal path and only a diamond template.
+
+| Case | ishara-madu | cleanplate |
+|---|---|---|
+| Still PNG, brick / neon (dB) | 43.4 / 40.2 (identical to GWT) | **56.4 / 56.5** |
+| Still JPEG q90, brick / neon | 32.5 / 35.8 | **33.0 / 40.8** |
+| Still resized + JPEG, brick / neon | 28.6 / 29.9 | **30.4 / 34.1** |
+| White kitchen (mark nearly invisible) | **damages**: 53.9 → 39.6 dB (wrong 162 px "mark") | refused, untouched |
+| Clean stills (should be untouched) | 1,055–5,373 pixels changed, up to 77 levels | untouched |
+| Real Flow stills (4) | dark oversized diamonds painted, mark kept (wrong size 74–179 px, opacity 0.5 vs 0.29) | 4/4 clean |
+| Video, Veo text mark (flower GT) | 18.0 dB, mark untouched (diamond subtracted elsewhere) | **31.9** (floor 32.5) |
+| Video, Gemini ✦ (flower GT) | 31.0 (output kept lossless here; the app re-encodes H.264) | **33.9** (floor 34.2) |
+
+Sheet: `out/img_ish/flow_cmp.jpg`.
