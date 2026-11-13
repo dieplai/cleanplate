@@ -1,7 +1,7 @@
 //! Video path: pass 1 (corner crops + thumbnails), detection, rebuild, pass 2 (paste + encode).
 use crate::ffmpeg::{encoder_args, has_encoder, probe, Decoder};
 use anyhow::{Context, Result};
-use cleanplate_core::detect::{detect_video, shot_cuts};
+use cleanplate_core::detect::{detect_video, sample_step, shot_cuts};
 use cleanplate_core::geom::{remap, resize_area, Border, Interp};
 use cleanplate_core::video::{place_alpha, prepare_alpha, rebuild, region_bounds, Guide, Params};
 use cleanplate_core::Plane;
@@ -22,8 +22,12 @@ pub struct VideoOpts {
 pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     let t0 = Instant::now();
     let log = |m: String| println!("[{:6.1}s] {m}", t0.elapsed().as_secs_f32());
+    if out.exists() && std::fs::canonicalize(inp)? == std::fs::canonicalize(out)? {
+        anyhow::bail!("the output {} is the input file; choose another name", out.display());
+    }
     let p = probe(inp)?;
     let (w, h) = (p.w, p.h);
+    anyhow::ensure!(w % 2 == 0 && h % 2 == 0, "odd frame size {w}x{h} is not supported (4:2:0 needs even dimensions)");
     log(format!(
         "{w}x{h} @ {}, audio={}, colour={:?}",
         p.fps, p.has_audio, p.color
@@ -53,7 +57,8 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     log(format!("pass 1: {n} frames, corner crop {cw}x{ch}"));
     let shots = shot_cuts(&thumbs);
     log(format!("shots: {} -> {:?}", shots.len(), shots));
-    let corners: Vec<Plane> = cy.iter().map(|c| Plane::from_u8(cw, ch, c)).collect();
+    // only the frames detection samples become f32 (≈120), not the whole clip
+    let corners: Vec<Plane> = cy.iter().step_by(sample_step(n)).map(|c| Plane::from_u8(cw, ch, c)).collect();
     let refs: Vec<&Plane> = corners.iter().collect();
     let det = match detect_video(&refs, w, h, o.min_ncc) {
         Ok(d) => d,
@@ -147,17 +152,34 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         .context("running ffmpeg encoder")?;
     let mut sink = enc.stdin.take().context("encoder stdin")?;
     let (x0, y0) = (cx0 + r.x0, cy0 + r.y0);
-    for (t, mut f) in Decoder::open(inp, w, h)?.enumerate().take(n) {
-        let (yp, rest) = f.split_at_mut(w * h);
-        let (up, vp) = rest.split_at_mut(w * h / 4);
-        paste(yp, w, x0, y0, &rb.y[t], &rb.feather_y);
-        paste(up, w / 2, x0 / 2, y0 / 2, &rb.u[t], &rb.feather_c);
-        paste(vp, w / 2, x0 / 2, y0 / 2, &rb.v[t], &rb.feather_c);
-        sink.write_all(&f)?;
-    }
+    // never leave a partial or short file behind: any failure removes the output
+    let written = (|| -> Result<usize> {
+        let mut count = 0;
+        for (t, mut f) in Decoder::open(inp, w, h)?.enumerate().take(n) {
+            let (yp, rest) = f.split_at_mut(w * h);
+            let (up, vp) = rest.split_at_mut(w * h / 4);
+            paste(yp, w, x0, y0, &rb.y[t], &rb.feather_y);
+            paste(up, w / 2, x0 / 2, y0 / 2, &rb.u[t], &rb.feather_c);
+            paste(vp, w / 2, x0 / 2, y0 / 2, &rb.v[t], &rb.feather_c);
+            sink.write_all(&f)?;
+            count += 1;
+        }
+        Ok(count)
+    })();
     drop(sink);
-    let st = enc.wait()?;
-    anyhow::ensure!(st.success(), "ffmpeg encoder failed");
+    let st = enc.wait();
+    let failed = match (&written, &st) {
+        (Ok(c), Ok(s)) if *c == n && s.success() => None,
+        (Ok(c), Ok(s)) if s.success() => Some(format!("pass 2 decoded {c} of {n} frames")),
+        (_, Ok(s)) if !s.success() => Some(format!("ffmpeg encoder failed ({s})")),
+        (Err(e), _) => Some(format!("writing frames: {e}")),
+        (_, Err(e)) => Some(format!("waiting for ffmpeg: {e}")),
+        _ => Some("encoding failed".into()),
+    };
+    if let Some(msg) = failed {
+        let _ = std::fs::remove_file(out);
+        anyhow::bail!("{msg}; no output written");
+    }
     let mb = std::fs::metadata(out)
         .map(|m| m.len() as f64 / 1e6)
         .unwrap_or(0.0);
@@ -189,6 +211,7 @@ fn load_guide(
 ) -> Result<Guide> {
     let gp = probe(path)?;
     let (gw, gh) = (gp.w, gp.h);
+    anyhow::ensure!(gw % 2 == 0 && gh % 2 == 0, "guide: odd frame size {gw}x{gh} is not supported");
     let sg = w as f32 / gw as f32;
     let maps = |pw: usize, ph: usize, ox: usize, oy: usize| -> (Plane, Plane) {
         let mx = Plane {

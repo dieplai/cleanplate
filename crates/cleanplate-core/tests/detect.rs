@@ -61,3 +61,13 @@ fn shot_cuts_on_concatenation() {
         .collect();
     assert_eq!(shot_cuts(&thumbs), vec![(0, 20), (20, 40)]);
 }
+
+#[test]
+fn sample_step_matches_reference() {
+    use cleanplate_core::detect::sample_step;
+    // Python: step = max(1, N // 120); callers may pre-sample with it to keep only ~120 frames as f32
+    assert_eq!(sample_step(48), 1);
+    assert_eq!(sample_step(190), 1);
+    assert_eq!(sample_step(240), 2);
+    assert_eq!(sample_step(3600), 30);
+}

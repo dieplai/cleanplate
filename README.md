@@ -36,8 +36,9 @@ it measures the mark's opacity on the image itself instead of trusting a templat
 <sub>Ceiling / floor = the clean footage through the same codec: no remover can beat it. Full tables, every clip and
 the method behind each number: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
-> **Visible marks only.** cleanplate never touches SynthID (the invisible watermark) or C2PA provenance metadata.
-> Label AI-generated content as your platform and your audience expect.
+> **Visible marks only.** cleanplate does not try to remove SynthID (the invisible watermark) or C2PA provenance.
+> Re-encoding cannot keep a C2PA signature valid (it binds the original pixels); video container metadata is copied,
+> still-image metadata is not. Label AI-generated content as your platform and your audience expect.
 
 ## Results at a glance
 

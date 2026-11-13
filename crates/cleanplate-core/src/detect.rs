@@ -25,8 +25,13 @@ pub struct Refusal {
 }
 
 /// Mean over sampled frames of (frame − GaussianBlur σ 3): the mark is the only static high-frequency structure.
+/// Frames used for detection: every `max(1, N / 120)`-th (research/pipeline.py). Callers may pre-sample with it.
+pub fn sample_step(n: usize) -> usize {
+    (n / 120).max(1)
+}
+
 fn hp_mean(corners: &[&Plane]) -> Plane {
-    let step = (corners.len() / 120).max(1);
+    let step = sample_step(corners.len());
     let samp: Vec<&&Plane> = corners.iter().step_by(step).collect();
     let parts: Vec<Plane> = crate::par_map(samp.len(), |i| {
         let f = samp[i];

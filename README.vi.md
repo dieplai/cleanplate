@@ -35,8 +35,9 @@ và chỉ dùng ước lượng MAP ở những chỗ không frame nào nhìn th
 <sub>Mức trần = chính cảnh sạch đi qua cùng bộ nén: không tool nào vượt được. Bảng đầy đủ, từng clip và cách đo:
 <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
-> **Chỉ xoá logo nhìn thấy được.** cleanplate không bao giờ đụng tới SynthID (watermark ẩn) hay metadata nguồn gốc
-> C2PA. Hãy ghi chú nội dung do AI tạo theo quy định của nền tảng và người xem.
+> **Chỉ xoá logo nhìn thấy được.** cleanplate không cố xoá SynthID (watermark ẩn) hay thông tin nguồn gốc C2PA.
+> Việc nén lại không thể giữ chữ ký C2PA còn hiệu lực (chữ ký gắn với pixel gốc); metadata của container video được
+> chép sang, metadata của ảnh thì không. Hãy ghi chú nội dung do AI tạo theo quy định của nền tảng và người xem.
 
 ## Kết quả tổng quan
 

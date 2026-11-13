@@ -5,7 +5,7 @@ use cleanplate_core::video::Params;
 use std::path::PathBuf;
 
 /// Remove the visible generator mark (Google Veo text, Gemini diamond) from a video or a still, leaving a clean plate.
-/// Visible marks only: SynthID and C2PA provenance are never touched.
+/// Visible marks only: SynthID and C2PA are not targeted (re-encoding cannot keep a C2PA signature valid).
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {

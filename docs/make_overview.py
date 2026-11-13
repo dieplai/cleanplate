@@ -101,7 +101,7 @@ for i, (sym, col, head, sub) in enumerate(items):
 # footer: the boundary
 fig.patches.append(FancyBboxPatch((0.06, 0.022), 0.88, 0.045, boxstyle="round,pad=0.006", transform=fig.transFigure,
                                   fc="#F4F6F9", ec="#C9CED6", lw=1))
-fig.text(0.5, 0.0445, "Boundary:  visible marks only   ·   SynthID and C2PA provenance are never touched   ·   "
+fig.text(0.5, 0.0445, "Boundary:  visible marks only   ·   SynthID and C2PA are never targeted   ·   "
          "nothing is generated: every pixel comes from the video or the image itself",
          ha="center", va="center", fontsize=11, color=INK)
 
