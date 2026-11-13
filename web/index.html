@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- static hosts (GitHub Pages) cannot send COOP/COEP; this service worker adds them so all CPU cores can be used.
+       It does nothing when the server already sends them (deploy/nginx.conf). -->
+  <script src="coi-serviceworker.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cleanplate · visible AI mark remover</title>
   <meta name="description" content="Remove the visible Gemini / Nano Banana / Veo mark from your images and videos, in your browser. Exact un-blending, bit-identical to the cleanplate CLI. Your image never leaves your device." />
@@ -67,7 +70,7 @@
       <div id="busy" class="busy hidden" role="status">
         <div class="spinner"></div>
         <p class="busy-title">Cleaning <span id="busy-name"></span>…</p>
-        <p class="busy-sub"><span id="busy-time">0.0</span> s · single-threaded WebAssembly, large images take a few seconds</p>
+        <p class="busy-sub"><span id="busy-time">0.0</span> s · on all your CPU cores, nothing is uploaded</p>
       </div>
 
       <div id="refused" class="notice hidden">
@@ -113,7 +116,7 @@
         <div class="spinner"></div>
         <p class="busy-title" id="v-stage">Starting…</p>
         <div class="progress"><span id="v-bar"></span></div>
-        <p class="busy-sub"><span id="v-time">0</span> s · single-threaded in the browser; the CLI is 5–10× faster</p>
+        <p class="busy-sub"><span id="v-time">0</span> s · on all your CPU cores, nothing is uploaded</p>
       </div>
 
       <div id="v-refused" class="notice hidden">

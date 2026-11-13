@@ -1,6 +1,26 @@
 // cleanplate web demo: decode → strip alpha → worker (wasm) → re-attach alpha → compare / download PNG.
 const $ = (id) => document.getElementById(id);
-const worker = new Worker('worker.js');
+// Image worker: the multi-threaded build when the browser allows it; if it has not reported in 10 s, start over with
+// one thread so the page can never hang on it.
+let worker = null;
+let THREADS = 0; // threads of the in-browser engine once loaded (0 = not yet)
+let pendingImage = null; // the message of the image being cleaned, re-sent if the worker is replaced
+function startImageWorker(single) {
+  const w = new Worker(single ? 'worker.js?single' : 'worker.js');
+  w.onmessage = ({ data }) => (data.loaded ? (THREADS = data.loaded) : onImageResult(data));
+  w.onerror = (e) => fail(`Worker failed to start: ${e.message}`);
+  worker = w;
+  if (!single)
+    setTimeout(() => {
+      if (THREADS) return;
+      w.terminate();
+      startImageWorker(true);
+      if (pendingImage) worker.postMessage(pendingImage);
+    }, 10000);
+}
+startImageWorker(false);
+// a few cores in the browser lose to the server once upload time is counted; many cores win
+const preferServer = () => SERVER && THREADS < 6;
 const views = ['dropzone', 'busy', 'refused', 'result'];
 let cur = null; // { name, w, h, src: ImageData }
 let timer = 0;
@@ -54,7 +74,7 @@ async function serverImage(file) {
     const d = g.getImageData(0, 0, bmp.width, bmp.height).data;
     const rgb = new Uint8Array((d.length / 4) * 3);
     for (let i = 0, j = 0; i < d.length; i += 4, j += 3) [rgb[j], rgb[j + 1], rgb[j + 2]] = [d[i], d[i + 1], d[i + 2]];
-    onImageResult({ status: 0, log: r.log, rgb });
+    onImageResult({ status: 0, log: r.log, rgb, where: `server, ${SERVER.cores} cores` });
   } catch (err) {
     fail(`Server: ${err.message}`);
   }
@@ -96,12 +116,13 @@ async function handle(file) {
   $('busy-name').textContent = file.name;
   show('busy');
   timer = setInterval(() => ($('busy-time').textContent = ((performance.now() - cur.t0) / 1000).toFixed(1)), 100);
-  if (SERVER) return serverImage(file);
-  worker.postMessage({ rgb, w, h, lossy: file.type !== 'image/png' }, [rgb.buffer]);
+  if (preferServer()) return serverImage(file);
+  pendingImage = { rgb, w, h, lossy: file.type !== 'image/png' };
+  worker.postMessage(pendingImage);
 }
 
-worker.onmessage = ({ data }) => onImageResult(data);
 function onImageResult(data) {
+  pendingImage = null;
   clearInterval(timer);
   const secs = ((performance.now() - cur.t0) / 1000).toFixed(1);
   if (data.error) return fail(`cleanplate crashed on this image (${data.error}). Please report it.`);
@@ -129,12 +150,11 @@ function onImageResult(data) {
   const [mx, my] = m ? [+m[3], +m[4]] : [w - size * 2, h - size * 2];
   zoom(mx + size / 2, my + size / 2, size * 2.4);
   $('detect-badge').textContent =
-    `✓ Removed ${m ? m[1].replace(/\.png$/, '') : 'mark'} · ${size}px` + (op ? ` · opacity ${(+op[1]).toFixed(2)}` : '') + ` · ${secs} s`;
+    `✓ Removed ${m ? m[1].replace(/\.png$/, '') : 'mark'} · ${size}px` + (op ? ` · opacity ${(+op[1]).toFixed(2)}` : '') + ` · ${secs} s · ${data.where || `${THREADS} thread${THREADS > 1 ? 's' : ''} in your browser`}`;
   $('result-log').textContent = data.log;
   setSplit(50);
   show('result');
 }
-worker.onerror = (e) => fail(`Worker failed to start: ${e.message}`);
 
 function zoom(cx, cy, side) {
   const s = Math.min(Math.round(side), cur.w, cur.h);
@@ -221,7 +241,7 @@ function vDone(src, mp4, log) {
   $('v-download').download = `${vJob.name}_clean.mp4`;
   const m = log.match(/detected (\S+) x([\d.]+) at \((\d+),(\d+)\)/);
   if (m) vZoomAt(+m[3], +m[4], +m[2]);
-  $('v-badge').textContent = `✓ Removed ${m ? m[1].replace(/\.png$/, '') : 'mark'} · ${secs} s · ${(mp4.byteLength / 1e6).toFixed(1)} MB`;
+  $('v-badge').textContent = `✓ Removed ${m ? m[1].replace(/\.png$/, '') : 'mark'} · ${secs} s · ${vJob.threads ? `${vJob.threads} thread${vJob.threads > 1 ? 's' : ''} in your browser` : `server, ${SERVER?.cores} cores`} · ${(mp4.byteLength / 1e6).toFixed(1)} MB`;
   $('v-log').textContent = log;
   vShow('v-result');
 }
@@ -253,31 +273,47 @@ async function vServer(file) {
 
 async function vHandle(file) {
   if (!file) return;
-  if (SERVER) return vServer(file);
+  if (preferServer()) return vServer(file);
   if (!('VideoDecoder' in window) || !('VideoEncoder' in window)) return vFail('This browser has no WebCodecs; use a recent Chrome or Edge, or the CLI.');
   if (!/\.(mp4|mov|m4v)$/i.test(file.name) && !/^video\/(mp4|quicktime)$/.test(file.type)) return vFail('Use an MP4 or MOV file (WebM/MKV: use the CLI).');
   vReset();
-  const worker = new Worker('video-worker.js');
   const src = URL.createObjectURL(file);
-  vJob = { worker, t0: performance.now(), urls: [src], name: file.name.replace(/\.[^.]+$/, '') };
+  vJob = { worker: null, t0: performance.now(), urls: [src], name: file.name.replace(/\.[^.]+$/, '') };
   vJob.timer = setInterval(() => ($('v-time').textContent = Math.round((performance.now() - vJob.t0) / 1000)), 500);
   $('v-stage').textContent = 'Reading the file…';
   $('v-bar').style.width = '0%';
   vShow('v-busy');
-  worker.onmessage = ({ data: d }) => {
-    if (d.progress) {
-      $('v-stage').textContent = d.progress;
-      $('v-bar').style.width = `${(100 * d.frac).toFixed(1)}%`;
-    } else if (d.error) {
-      vFail(`Could not process this video: ${d.error}`);
-    } else if (d.refused) {
-      vRefused(d.log);
-    } else if (d.done) {
-      vDone(src, d.mp4, d.log);
-    }
+  const job = vJob;
+  // same watchdog as the image worker: no report from the multi-threaded build in 10 s -> one thread
+  const start = (single) => {
+    const worker = new Worker(single ? 'video-worker.js?single' : 'video-worker.js');
+    job.worker = worker;
+    let loaded = false;
+    worker.onmessage = ({ data: d }) => {
+      if (d.loaded) {
+        loaded = true;
+        job.threads = d.loaded;
+      } else if (d.progress) {
+        $('v-stage').textContent = d.progress;
+        $('v-bar').style.width = `${(100 * d.frac).toFixed(1)}%`;
+      } else if (d.error) {
+        vFail(`Could not process this video: ${d.error}`);
+      } else if (d.refused) {
+        vRefused(d.log);
+      } else if (d.done) {
+        vDone(src, d.mp4, d.log);
+      }
+    };
+    worker.onerror = (e) => vFail(`Worker failed: ${e.message}`);
+    if (!single)
+      setTimeout(() => {
+        if (loaded || vJob !== job) return;
+        worker.terminate();
+        start(true);
+      }, 10000);
+    file.arrayBuffer().then((buf) => worker.postMessage({ buf }, [buf]));
   };
-  worker.onerror = (e) => vFail(`Worker failed: ${e.message}`);
-  worker.postMessage({ buf: await file.arrayBuffer() });
+  start(false);
 }
 
 $('v-input').addEventListener('change', (e) => vHandle(e.target.files[0]));

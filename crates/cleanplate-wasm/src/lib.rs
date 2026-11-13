@@ -77,6 +77,23 @@ pub unsafe extern "C" fn vid_free(v: *mut Vid) {
     drop(Box::from_raw(v));
 }
 
+/// Size the worker pool (multi-threaded build only); returns the thread count in use (1 in the single-threaded build).
+#[no_mangle]
+pub extern "C" fn cp_threads(n: usize) -> usize {
+    #[cfg(feature = "parallel")]
+    {
+        let _ = rayon::ThreadPoolBuilder::new()
+            .num_threads(n.max(1))
+            .build_global();
+        rayon::current_num_threads()
+    }
+    #[cfg(not(feature = "parallel"))]
+    {
+        let _ = n;
+        1
+    }
+}
+
 /// Allocate `n` bytes of wasm memory for the caller.
 #[no_mangle]
 pub extern "C" fn cp_alloc(n: usize) -> *mut u8 {

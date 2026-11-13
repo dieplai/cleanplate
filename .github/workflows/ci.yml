@@ -17,7 +17,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets -- -D warnings
-      - run: rustup target add wasm32-unknown-unknown && cargo build --release -p cleanplate-wasm --target wasm32-unknown-unknown
+      - run: rustup target add wasm32-unknown-unknown wasm32-wasip1-threads
+      - run: cargo build --release -p cleanplate-wasm --target wasm32-unknown-unknown
+      - run: cargo build --release -p cleanplate-wasm --features parallel --target wasm32-wasip1-threads
+        env:
+          RUSTFLAGS: -C link-arg=--max-memory=4294967296 -C link-arg=--export=__wasi_init_tp -C link-arg=--export=__wasm_call_ctors
   rust:
     strategy:
       fail-fast: false

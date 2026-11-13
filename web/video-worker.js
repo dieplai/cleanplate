@@ -1,16 +1,14 @@
 // Video in the browser: mp4box demux → WebCodecs decode (twice) → cleanplate.wasm → WebCodecs H.264 encode → mp4-muxer.
 // The audio track is copied without re-encoding. Messages out: {progress} | {log} | {done, mp4, log} | {refused, log} | {error}.
-importScripts('vendor/mp4box.all.min.js', 'vendor/mp4-muxer.min.js');
+importScripts('vendor/mp4box.all.min.js', 'vendor/mp4-muxer.min.js', 'wasm-loader.js');
 
-const wasm = fetch('cleanplate.wasm')
-  .then((r) => r.arrayBuffer())
-  .then((b) => WebAssembly.instantiate(b, {}))
-  .then(({ instance }) => instance.exports);
+const wasm = loadCleanplate(self.location.search.includes('single'));
+wasm.then(({ threads }) => postMessage({ loaded: threads }));
 
 function readBlock(e, p) {
   const dv = new DataView(e.memory.buffer, p, 12);
   const [status, ll, rl] = [0, 4, 8].map((o) => dv.getUint32(o, true));
-  const log = new TextDecoder().decode(new Uint8Array(e.memory.buffer, p + 12, ll));
+  const log = new TextDecoder().decode(new Uint8Array(e.memory.buffer, p + 12, ll).slice()); // memory may be shared
   e.cp_free(p, 12 + ll + rl);
   return { status, log };
 }
@@ -104,7 +102,7 @@ async function toI420(fr, dst, w, h) {
 onmessage = async ({ data: { buf } }) => {
   let vid = 0, e = null;
   try {
-    e = await wasm;
+    e = (await wasm).exports;
     const { f, info, samples } = demux(buf);
     const vt = info.videoTracks[0];
     if (!vt) throw new Error('no video track');

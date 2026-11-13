@@ -65,8 +65,8 @@ chính xác của logo ngay trên ảnh của bạn thay vì giả định.
 ### Cách 1 — dùng trên trình duyệt (không cần cài gì)
 
 Mở **[dieplai.github.io/cleanplate](https://dieplai.github.io/cleanplate/)** bằng Chrome hoặc Edge rồi kéo file vào.
-Mọi thứ chạy trên máy bạn, file không được tải lên đâu cả. Ảnh cho kết quả giống hệt CLI; video chậm hơn (một luồng)
-và được nén lại bằng H.264.
+Mọi thứ chạy trên máy bạn, dùng tất cả nhân CPU; file không được tải lên đâu cả. Ảnh cho kết quả giống hệt CLI; video
+được nén lại bằng H.264.
 
 ### Cách 2 — tải công cụ dòng lệnh
 
@@ -162,7 +162,8 @@ Rudin–Osher–Fatemi, 1992.
 Trên laptop 12 nhân: clip 720p dài 8 giây mất **3–9 giây** (cảnh tĩnh 9:16 mất 18 giây), ảnh 2528×1696 mất **2 giây**:
 **nhanh hơn bản Python tham chiếu khoảng 16 lần với cùng chất lượng** (cổng đo có đáp án trên 8 clip: trung bình 36,65
 so với 36,64 dB; ảnh giống hệt từng bit; [`bench/rust_vs_python.sh`](./bench/rust_vs_python.sh)). Bản trình duyệt chạy
-cùng core dưới dạng WebAssembly trên một luồng: ~9 giây cho ảnh đó, ~21 giây cho clip đó.
+cùng core dưới dạng WebAssembly trên mọi nhân (laptop 12 luồng, Chrome: 2,6 giây cho ảnh đó, 8 giây cho clip đó,
+14 giây cho cảnh tĩnh 1080p); trình duyệt nào không chia sẻ được bộ nhớ giữa các luồng thì tự chạy một luồng.
 
 Mã Rust chia thành [`cleanplate-core`](./crates/cleanplate-core) (toàn bộ thuật toán, không đụng file hay hệ điều
 hành) và [`cleanplate-cli`](./crates/cleanplate-cli) (đọc ghi file và ffmpeg);

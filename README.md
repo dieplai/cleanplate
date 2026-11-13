@@ -65,8 +65,8 @@ measured: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 ### Option 1 — in the browser (nothing to install)
 
 Open **[dieplai.github.io/cleanplate](https://dieplai.github.io/cleanplate/)** in Chrome or Edge and drop a file.
-Everything runs on your device; the file is never uploaded. Images give exactly the same result as the CLI; video is
-slower (single-threaded) and re-encoded as H.264.
+Everything runs on your device, on all its CPU cores; the file is never uploaded. Images give exactly the same
+result as the CLI; video is re-encoded as H.264.
 
 ### Option 2 — download the command-line tool
 
@@ -161,7 +161,8 @@ References: Dekel et al., *On the Effectiveness of Visible Watermarks*, CVPR 201
 On a 12-core laptop: an 8 s 720p clip in **3–9 s** (a 9:16 static shot 18 s), a 2528×1696 still in **2 s**: **about
 16× faster than the Python reference at the same quality** (ground-truth gate over 8 clips: 36.65 vs 36.64 dB mean;
 stills bit-identical; [`bench/rust_vs_python.sh`](./bench/rust_vs_python.sh)). The browser version runs the same
-core as WebAssembly on one thread: ~9 s for that still, ~21 s for that clip.
+core as WebAssembly on all cores (a 12-thread laptop in Chrome: 2.6 s for that still, 8 s for that clip, 14 s for a
+static 1080p shot); where the browser cannot share memory between threads it falls back to one thread.
 
 The Rust code is split into [`cleanplate-core`](./crates/cleanplate-core) (every algorithm, no file or OS access) and
 [`cleanplate-cli`](./crates/cleanplate-cli) (files and ffmpeg); [`cleanplate-wasm`](./crates/cleanplate-wasm) +

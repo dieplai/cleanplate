@@ -11,5 +11,10 @@ publish = false
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# multi-threaded build (wasm32-wasip1-threads + a browser thread shim, see web/wasi-threads.js)
+parallel = ["cleanplate-core/parallel", "dep:rayon"]
+
 [dependencies]
 cleanplate-core = { path = "../cleanplate-core", default-features = false }
+rayon = { version = "1", optional = true }
