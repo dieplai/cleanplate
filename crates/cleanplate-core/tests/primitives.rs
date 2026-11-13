@@ -87,3 +87,11 @@ fn resize_by_factor_matches_opencv() {
     assert!(max_err(&resize_cubic_fx(&v, 1.5), &plane("veo_fx1_5")) <= 1e-4);
     assert!(max_err(&resize_area_fx(&v, 0.667), &plane("veo_fx0_667")) <= 1e-4);
 }
+
+#[test]
+fn tv_matches_python() {
+    let (m, _, _) = mask("tv_mask");
+    let out = cleanplate_core::tv::tv_refine(&plane("tv_mu"), &plane("tv_w"), &m, &plane("tv_lam"), 300, 1.0);
+    let e = max_err(&out, &plane("tv_out"));
+    assert!(e <= 1e-2, "{e}");
+}

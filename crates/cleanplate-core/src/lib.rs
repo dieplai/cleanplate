@@ -6,6 +6,7 @@ pub mod geom;
 pub mod marks;
 pub mod ncc;
 pub mod plane;
+pub mod tv;
 
 pub use plane::Plane;
 

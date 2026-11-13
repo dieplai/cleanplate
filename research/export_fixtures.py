@@ -99,3 +99,21 @@ t0, t1 = np.round(tex).astype(np.uint8), np.round(np.clip(sh, 0, 255)).astype(np
 save("shift_i0", t0); save("shift_i1", t1)
 f = dis.calc(t0, t1, None); e = np.hypot(f[..., 0] - 1.3, f[..., 1] + 0.7)[10:-10, 10:-10]
 print("opencv synthetic EPE median %.4f p90 %.4f" % (np.median(e), np.percentile(e, 90)))
+
+# ---- Task 4: weighted-TV MAP refinement (verbatim research/pipeline.py tv_refine)
+def tv_refine(mu, w, mask, lam, iters=300, eps=1.0):
+    I = mu.copy()
+    tau = 0.9 / (2 * w + 8 * lam / eps)
+    for _ in range(iters):
+        gx = np.diff(I, axis=1, append=I[:, -1:]); gy = np.diff(I, axis=0, append=I[-1:, :])
+        n = np.sqrt(gx ** 2 + gy ** 2 + eps ** 2)
+        px, py = gx / n, gy / n
+        div = px - np.roll(px, 1, axis=1) + py - np.roll(py, 1, axis=0)
+        I[mask] -= (tau * (2 * w * (I - mu) - lam * div))[mask]
+    return I
+r4 = np.random.default_rng(4)
+tmu = r4.uniform(0, 255, (30, 40)).astype(np.float32); tw = r4.uniform(0.05, 48, (30, 40)).astype(np.float32)
+tmask = np.zeros((30, 40), bool); tmask[5:25, 6:34] = True
+tlam = (16.0 * (r4.uniform(0, 1, (30, 40)) > 0.5)).astype(np.float32)
+save("tv_mu", tmu); save("tv_w", tw); save("tv_mask", tmask.astype(np.uint8)); save("tv_lam", tlam)
+save("tv_out", tv_refine(tmu, tw, tmask, tlam).astype(np.float32))
