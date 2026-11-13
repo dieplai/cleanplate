@@ -35,10 +35,11 @@ def trim(A):
     ys, xs = np.where(A > 0.01); return A[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
 
 # shapes: normalised to plateau 1 (median of the core), so opacity is fitted, not assumed
-shapes, native = {}, {}
+shapes, native, nsize = {}, {}, {}
 for f in sorted(glob.glob(os.path.join(args.marks, "gemini-diamond*.png"))):
     A = trim(cv2.imread(f, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0)
     k = os.path.basename(f); native[k] = float(np.median(A[A > 0.5 * A.max()])); shapes[k] = A / native[k]
+    nsize[k] = max(A.shape)
 
 # ---------------------------------------------------------------- detect
 CS = min(H, W, max(320, min(H, W) // 3))
@@ -117,10 +118,17 @@ def energy(S, g):
     for k in range(3):
         ix, iy = grad(np.ascontiguousarray(I[..., k])); e += float((ix ** 2 + iy ** 2)[band].mean())
     return e
-for e_, name, dx_, dy_, gm in list(cands):
+snapped = []
+for e_, name, dx_, dy_, gm in cands:
     if abs(gm - native[name]) < 0.04 * max(1.0, native[name] / 0.3):
-        cands.append((energy(shape_at(name, dx_, dy_), native[name]), name, dx_, dy_, native[name]))
-cands.sort(); e0, sname, cx, cy, gain = cands[0]
+        snapped.append((energy(shape_at(name, dx_, dy_), native[name]), name, dx_, dy_, native[name]))
+# a shape whose measured opacity matches the level it is rendered at is strong evidence for that shape (on busy
+# texture the edge energies of two renderings can tie: synthetic test picked the 0.30 shape at 0.49 otherwise)
+cands = sorted(snapped) if snapped else sorted(cands)
+# generators render each size from its own artwork: a template captured at the detected size beats a resampled one
+exact = [c for c in cands if abs(nsize[c[1]] - msize) <= 1]
+cands = exact or cands
+e0, sname, cx, cy, gain = cands[0]
 dx, dy = cx, cy
 for ddy in (-0.25, 0, 0.25):                        # refine the offset around the best
     for ddx in (-0.25, 0, 0.25):

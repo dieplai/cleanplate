@@ -121,12 +121,13 @@ the PNG ceiling is the 8-bit inversion limit (~60). `research/img_bench.py`.
 | Brick, JPEG q90 | 32.7 | 33.0 | **33.0** | 35.4 |
 | Neon, JPEG q90 | 36.0 | 37.3 | **40.8** | 42.3 |
 | Brick, resized 60 % + JPEG | not detected | not detected | **30.4** | 32.3 |
-| Neon, resized 60 % + JPEG | not detected | 15.5 (wrong mark) | **36.1** | 43.9 (exact-alpha inversion: 36.6) |
+| Neon, resized 60 % + JPEG | not detected | 15.5 (wrong mark) | **34.1** (LPIPS 0.061) | 43.9 (exact-alpha inversion: 36.6) |
 | White kitchen (mark adds ≤ 7 levels on 253) | not detected | not detected | not detected (refused) | — |
 
 How: the template gives only the SHAPE; opacity is fitted on the image (zero-crossing of the signed correlation
 between the restored image's gradient and the mark's gradient — 0.498–0.504 measured vs 0.498 true), snapped to the
-shape's native level when within reach; size is searched continuously only for resized copies; JPEG inputs get a
+shape's native level when within reach (a shape whose measured opacity matches its rendering level wins; a
+template captured at the detected size beats a resampled one); size is searched continuously only for resized copies; JPEG inputs get a
 weighted-TV step whose strength follows the texture around the mark (brick wants ~1, a smooth neon scene ~6).
 Detection is scale-free (generator margins are 2/3× or 2× the mark size). The 9 clean versions are all refused.
 Gemini has shipped the same diamond at alpha 0.30 ("V2") and 0.50 ("V1", this image); a fixed-opacity template
