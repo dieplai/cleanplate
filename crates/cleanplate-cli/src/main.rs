@@ -112,7 +112,10 @@ fn real_main() -> Result<i32> {
 fn run_one(a: &Args, vopts: &VideoOpts) -> Result<i32> {
     let (inp, out) = (&a.inputs[0], &a.inputs[1]);
     if out.exists() && !a.overwrite {
-        bail!("{} already exists, add --overwrite to replace it", out.display());
+        bail!(
+            "{} already exists, add --overwrite to replace it",
+            out.display()
+        );
     }
     let mut print = |l: String| println!("{l}");
     let outcome = if still_io::is_still(inp) {
@@ -128,7 +131,10 @@ fn run_one(a: &Args, vopts: &VideoOpts) -> Result<i32> {
             eprintln!("note: {flag} applies to video only and is ignored for stills");
         }
         if !still_io::is_still(out) {
-            bail!("a still must be written as .png, .jpg or .webp, not {}", out.display());
+            bail!(
+                "a still must be written as .png, .jpg or .webp, not {}",
+                out.display()
+            );
         }
         still_io::clean(inp, out, a.lam, &mut print)?
     } else {
@@ -149,7 +155,11 @@ fn run_batch(a: &Args, dir: &Path, vopts: &VideoOpts) -> Result<i32> {
     }
     let jobs = batch::plan(&a.inputs, dir, &a.format, &a.image_format)?;
     let cores = std::thread::available_parallelism().map_or(4, |n| n.get());
-    let workers = if a.jobs > 0 { a.jobs } else { batch::auto_workers(&jobs, cores, ram_gb()) };
+    let workers = if a.jobs > 0 {
+        a.jobs
+    } else {
+        batch::auto_workers(&jobs, cores, ram_gb())
+    };
     let videos = jobs.iter().filter(|j| j.video).count();
     println!(
         "Cleaning {} files ({videos} videos, {} stills) into {}, {workers} at a time",

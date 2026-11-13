@@ -102,10 +102,25 @@ cleanplate clip.mp4 clip_clean.mkv              # FFV1 lossless
 cleanplate clip_1080p.mp4 out.mov --guide clip_720p_clean.mov   # bản tải AI upscale + bản 720p đã làm sạch
 ```
 
+**Nhiều file một lần.** Truyền bao nhiêu file và thư mục cũng được, kèm một thư mục đầu ra:
+
+```bash
+cleanplate downloads/ -o cleaned/                       # mọi ảnh và video trong downloads/, giữ thư mục con
+cleanplate a.mp4 b.png shots/ -o cleaned/ --format mov  # video xuất ProRes, ảnh xuất PNG (mặc định)
+```
+
+Kết quả được ghi thành `<tên>_clean.<đuôi>`, chạy hai file cùng lúc trên máy từ 8 nhân (đo được: 17 clip mất 198 giây
+thay vì 245 giây khi chạy lần lượt), trong giới hạn RAM còn trống. Một file lỗi không làm dừng các file khác, file kết
+quả chỉ mang tên chính thức khi đã ghi xong, và kết quả đã có thì được bỏ qua, nên chạy lại là tiếp tục từ chỗ dừng.
+Mỗi file một dòng báo, một bảng tổng kết và file `cleanplate-report.json` cho biết chuyện gì đã xảy ra.
+
 Trên Windows, khi chạy trong thư mục vừa giải nén thì gõ `.\cleanplate.exe` thay cho `cleanplate`.
 
 | Tuỳ chọn | Ý nghĩa |
 |---|---|
+| `-o DIR` | Xử lý nhiều file vào thư mục này (xem trên) |
+| `--format mp4\|mov\|mkv`, `--image-format png\|jpg\|webp` | Khi dùng `-o`: định dạng đầu ra cho video và ảnh |
+| `-j N`, `--overwrite`, `-v` | Khi dùng `-o`: số file cùng lúc (mặc định tự chọn), ghi đè kết quả đã có, in log từng file |
 | `--codec auto\|h264x\|av1\|h264\|prores\|ffv1` | Bộ mã hoá video. `auto` chọn theo đuôi file ra và những gì ffmpeg của bạn có |
 | `--guide FILE` | Với bản tải Flow 1080p / 4K: cùng clip ở 720p, đã làm sạch |
 | `--threads N` | Số luồng (mặc định: tất cả nhân CPU) |

@@ -30,6 +30,12 @@ pub enum Status {
     Failed(String),
 }
 
+/// Cleans one job, sending its log lines to the closure it is given.
+pub type CleanFn<'a> = dyn Fn(&Job, &mut dyn FnMut(String)) -> Result<Outcome> + Sync + 'a;
+
+/// One result slot per job, filled by whichever worker ran it.
+type Slots = Mutex<Vec<Option<Done>>>;
+
 #[derive(Debug, Clone)]
 pub struct Done {
     pub job: Job,
@@ -68,7 +74,12 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 
 /// The jobs for `inputs` (files and directories) written into `out_dir` as `<name>_clean.<ext>`, keeping each
 /// directory's sub-folders. `video_ext` / `still_ext`: the output formats (e.g. "mp4", "png").
-pub fn plan(inputs: &[PathBuf], out_dir: &Path, video_ext: &str, still_ext: &str) -> Result<Vec<Job>> {
+pub fn plan(
+    inputs: &[PathBuf],
+    out_dir: &Path,
+    video_ext: &str,
+    still_ext: &str,
+) -> Result<Vec<Job>> {
     let mut jobs = vec![];
     let mut taken = HashSet::new();
     for inp in inputs {
@@ -77,7 +88,11 @@ pub fn plan(inputs: &[PathBuf], out_dir: &Path, video_ext: &str, still_ext: &str
             walk(inp, &mut v)?;
             v.into_iter()
                 .map(|f| {
-                    let rel = f.strip_prefix(inp).unwrap_or(&f).parent().map(Path::to_path_buf);
+                    let rel = f
+                        .strip_prefix(inp)
+                        .unwrap_or(&f)
+                        .parent()
+                        .map(Path::to_path_buf);
                     (f, rel.unwrap_or_default())
                 })
                 .collect()
@@ -91,7 +106,11 @@ pub fn plan(inputs: &[PathBuf], out_dir: &Path, video_ext: &str, still_ext: &str
         };
         for (input, sub) in files {
             let video = is_video(&input);
-            let stem = input.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+            let stem = input
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
             let ext = if video { video_ext } else { still_ext };
             let dir = out_dir.join(&sub);
             // two inputs with the same name from different places: number the second one
@@ -101,7 +120,11 @@ pub fn plan(inputs: &[PathBuf], out_dir: &Path, video_ext: &str, still_ext: &str
                 output = dir.join(format!("{stem}_clean_{k}.{ext}"));
                 k += 1;
             }
-            jobs.push(Job { input, output, video });
+            jobs.push(Job {
+                input,
+                output,
+                video,
+            });
         }
     }
     if jobs.is_empty() {
@@ -116,12 +139,12 @@ pub fn run(
     jobs: &[Job],
     workers: usize,
     overwrite: bool,
-    clean: &(dyn Fn(&Job, &mut dyn FnMut(String)) -> Result<Outcome> + Sync),
+    clean: &CleanFn,
     on_done: &(dyn Fn(usize, &Done) + Sync),
 ) -> Vec<Done> {
     let next = AtomicUsize::new(0);
     let finished = AtomicUsize::new(0);
-    let results: Mutex<Vec<Option<Done>>> = Mutex::new(vec![None; jobs.len()]);
+    let results: Slots = Mutex::new(vec![None; jobs.len()]);
     std::thread::scope(|sc| {
         for _ in 0..workers.clamp(1, jobs.len().max(1)) {
             sc.spawn(|| loop {
@@ -167,7 +190,12 @@ pub fn run(
             });
         }
     });
-    results.into_inner().unwrap().into_iter().flatten().collect()
+    results
+        .into_inner()
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
 /// Files in flight by default. One file already uses every core, so a second one mainly overlaps ffmpeg's decoding
@@ -224,16 +252,38 @@ mod tests {
     fn plan_names_outputs_and_keeps_sub_folders() {
         let d = std::env::temp_dir().join(format!("cleanplate-batch-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
-        for f in ["in/a.mp4", "in/sub/b.PNG", "in/sub/.hidden.png", "in/notes.txt", "x/a.mp4"] {
+        for f in [
+            "in/a.mp4",
+            "in/sub/b.PNG",
+            "in/sub/.hidden.png",
+            "in/notes.txt",
+            "x/a.mp4",
+        ] {
             touch(&d.join(f));
         }
-        let jobs = plan(&[d.join("in"), d.join("x/a.mp4")], &d.join("out"), "mp4", "png").unwrap();
-        let outs: Vec<_> = jobs.iter().map(|j| j.output.strip_prefix(&d).unwrap().to_path_buf()).collect();
+        let jobs = plan(
+            &[d.join("in"), d.join("x/a.mp4")],
+            &d.join("out"),
+            "mp4",
+            "png",
+        )
+        .unwrap();
+        let outs: Vec<_> = jobs
+            .iter()
+            .map(|j| j.output.strip_prefix(&d).unwrap().to_path_buf())
+            .collect();
         assert_eq!(
             outs,
-            [PathBuf::from("out/a_clean.mp4"), "out/sub/b_clean.png".into(), "out/a_clean_2.mp4".into()]
+            [
+                PathBuf::from("out/a_clean.mp4"),
+                "out/sub/b_clean.png".into(),
+                "out/a_clean_2.mp4".into()
+            ]
         );
-        assert_eq!(jobs.iter().map(|j| j.video).collect::<Vec<_>>(), [true, false, true]);
+        assert_eq!(
+            jobs.iter().map(|j| j.video).collect::<Vec<_>>(),
+            [true, false, true]
+        );
         assert!(plan(&[d.join("in/notes.txt")], &d.join("out"), "mp4", "png").is_err());
         assert!(plan(&[d.join("missing")], &d.join("out"), "mp4", "png").is_err());
     }
@@ -249,7 +299,11 @@ mod tests {
             video: false,
         };
         let mut jobs: Vec<Job> = ["ok", "refused", "fails", "panics"].map(job).to_vec();
-        jobs.push(Job { input: "x".into(), output: d.join("already_clean.png"), video: false });
+        jobs.push(Job {
+            input: "x".into(),
+            output: d.join("already_clean.png"),
+            video: false,
+        });
         let clean = |j: &Job, log: &mut dyn FnMut(String)| -> Result<Outcome> {
             log(format!("working on {}", j.input.display()));
             match j.input.to_str().unwrap() {

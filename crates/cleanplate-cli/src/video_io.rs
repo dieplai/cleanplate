@@ -20,7 +20,12 @@ pub struct VideoOpts {
 }
 
 /// Clean one video into `out`. `log` receives the progress lines (time-stamped).
-pub fn clean(inp: &Path, out: &Path, o: &VideoOpts, log: &mut dyn FnMut(String)) -> Result<Outcome> {
+pub fn clean(
+    inp: &Path,
+    out: &Path,
+    o: &VideoOpts,
+    log: &mut dyn FnMut(String),
+) -> Result<Outcome> {
     let t0 = Instant::now();
     let mut log = |m: String| log(format!("[{:6.1}s] {m}", t0.elapsed().as_secs_f32()));
     if out.exists() && std::fs::canonicalize(inp)? == std::fs::canonicalize(out)? {
@@ -53,7 +58,11 @@ pub fn clean(inp: &Path, out: &Path, o: &VideoOpts, log: &mut dyn FnMut(String))
     log(format!("pass 1: {n} frames, corner crop {cw}x{ch}"));
     let found = match s.detect(o.min_ncc, o.opaque, o.guide.is_some(), &mut log) {
         Ok(f) => f,
-        Err(r) => return Ok(Outcome::Refused(format!("{r} - leaving the video untouched"))),
+        Err(r) => {
+            return Ok(Outcome::Refused(format!(
+                "{r} - leaving the video untouched"
+            )))
+        }
     };
     let guide = match (&o.guide, found.opaque) {
         (Some(g), true) => Some(load_guide(g, w, found.rect, n)?),
@@ -95,7 +104,11 @@ pub fn clean(inp: &Path, out: &Path, o: &VideoOpts, log: &mut dyn FnMut(String))
         (_, Err(e)) => Some(format!("waiting for ffmpeg: {e}")),
         _ => Some("encoding failed".into()),
     };
-    let failed = failed.or_else(|| finish(&tmp, out).err().map(|e| format!("moving the result into place: {e}")));
+    let failed = failed.or_else(|| {
+        finish(&tmp, out)
+            .err()
+            .map(|e| format!("moving the result into place: {e}"))
+    });
     if let Some(msg) = failed {
         let _ = std::fs::remove_file(&tmp);
         anyhow::bail!("{msg}, no output written");
