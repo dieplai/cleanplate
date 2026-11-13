@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml/badge.svg)](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](./research)
+[![Rust](https://img.shields.io/badge/rust-core%20%2B%20CLI-B7410E.svg)](./crates)
 [![Status: research preview](https://img.shields.io/badge/status-research%20preview-orange.svg)](./CHANGELOG.md)
 
 **English** · [Tiếng Việt](./README.vi.md)
@@ -71,19 +71,25 @@ the method behind each number: <a href="./docs/benchmark.md">docs/benchmark.md</
 
 ```bash
 git clone https://github.com/dieplai/cleanplate.git && cd cleanplate
-pip install numpy opencv-python              # video also needs ffmpeg on PATH
+cargo install --path crates/cleanplate-cli        # Rust ≥ 1.82; video also needs ffmpeg on PATH
 
-python3 research/image.py photo.png photo_clean.png
-python3 research/pipeline.py clip.mp4 clip_clean.mov --codec prores    # or --codec av1 / h264 / ffv1
-python3 tests/test_image.py                  # self-check: removes a synthetic mark, refuses a clean image
+cleanplate photo.png photo_clean.png
+cleanplate clip.mp4 clip_clean.mov                # .mov = ProRes 422 HQ; or --codec av1 / h264 / ffv1
+cleanplate clip_1080p.mp4 out.mov --guide clip_720p_clean.mov    # AI-upscaled download + its cleaned 720p
 ```
+
+An 8-second 720p clip takes **3–9 s** (a 9:16 static shot 18 s), a 2528×1696 still **2 s**, on a 12-core laptop —
+**16× faster than the Python reference at the same quality** (ground-truth gate: mean 36.65 vs 36.64 dB over 8 clips;
+stills identical; `bench/rust_vs_python.sh`). A clean input is never modified: the tool exits with code 2 and writes
+nothing.
 
 **Best quality:** download the **native resolution** (Flow: 720p "original size"). Flow's 1080p and 4K downloads are
 AI upscales of the *marked* video, so the mark is re-drawn and partly destroys what is under it; if you only have the
 1080p, pass the same clip's 720p with `--guide`.
 
-The Python code in `research/` is the reference implementation and the executable specification. A Rust core with a
-single-file CLI and a drag-and-drop web page that runs entirely in your browser are next (see the roadmap).
+`crates/cleanplate-core` holds every algorithm with no file or OS access (ready for WebAssembly);
+`crates/cleanplate-cli` does the IO. The Python code in `research/` stays as the reference specification and the
+research bench (`pip install numpy opencv-python`).
 
 ## How it works
 
@@ -110,14 +116,13 @@ Details, evidence and the ideas that were tried and rejected: [`docs/method.md`]
   keep a faint smoothed patch.
 - **A mark on pure white** (adds ≤ 7 levels on 253) is not detected by any tool, cleanplate included; it is also
   practically invisible.
-- **Speed:** the Python reference takes 1–4 minutes per 8-second clip. The Rust core targets seconds.
 
 ## Roadmap
 
 - [x] Video reference pipeline + ground-truth benchmark (8 clips)
 - [x] Still images, self-calibrated opacity, resized / re-encoded copies
 - [x] Flow 1080p (`--guide`), Gemini-app and Flow stills, Zalo round trip
-- [ ] Rust core + single-file CLI (Linux, macOS, Windows)
+- [x] Rust core + single-file CLI (Linux, macOS, Windows) — same quality as the reference, ~16× faster
 - [ ] In-browser drag-and-drop page (WebAssembly + WebCodecs; files never leave your device)
 - [ ] Optional upscaling of the clean result
 

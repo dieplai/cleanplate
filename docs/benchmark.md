@@ -165,3 +165,33 @@ scaled by a fixed preset gain, detects on a 4-px grid, has no refusal path and o
 | Video, Gemini ✦ (flower GT) | 31.0 (output kept lossless here; the app re-encodes H.264) | **33.9** (floor 34.2) |
 
 Sheet: `out/img_ish/flow_cmp.jpg`.
+
+## Rust core + CLI vs the Python reference (`bench/rust_vs_python.sh`)
+
+Same ground-truth clips and scorer as above; release build, 12-core laptop. Gate: every clip ≥ Python − 0.10 dB, mean ≥
+Python, ghost ≤ Python + 0.5; stills compared on PNG outputs. Full output: `bench/rust_vs_python.txt`.
+
+| Clip | Python dB | Rust dB | Python time | Rust time | Rust peak RAM |
+|---|---|---|---|---|---|
+| Veo flower (moving) | 31.93 | 31.93 | 63 s | 4.1 s | 311 MB |
+| Veo night | 39.92 | 39.90 | 69 s | 3.9 s | 311 MB |
+| Veo snow | 41.53 | **41.71** | 66 s | 3.7 s | 311 MB |
+| Veo teacup (steam) | 36.94 | 36.87 | 69 s | 3.4 s | 312 MB |
+| Veo kitchen 9:16 (static) | 36.15 | 36.14 | 184 s | 5.8 s | 243 MB |
+| ✦ flower | 33.90 | 33.90 | 97 s | 8.4 s | 311 MB |
+| ✦ night | 36.11 | 36.11 | 97 s | 8.3 s | 312 MB |
+| ✦ kitchen 9:16 (static) | 36.65 | 36.65 | 257 s | 17.5 s | 632 MB |
+| **Mean** | 36.64 | **36.65** | | | |
+
+Stills: the 6 marked cases match to ≤ 0.04 dB (JPEG inputs decode through a different library; with identical decoded
+input and PNG output the results are bit-identical); the 3 near-invisible marks are refused by both. A 2528×1696 Gemini
+still: Python 3.8 s, Rust 1.9 s.
+
+What it took to match OpenCV's DIS optical flow without OpenCV: the patch rows are split into 12 stripes with no
+vertical propagation across stripes (OpenCV's threading), and the variational refinement normalises its data terms by
+|∇I|² + ζ² (Zimmer et al.) on 0–255 intensities with a raw patch Hessian — measured against OpenCV on 8 real pairs, the
+median end-point error fell from 1.80 to 0.63 (sum over pairs). The remaining 0.07 dB on teacup is flow on steam moving
+~20 px/frame, where no two DIS implementations agree.
+
+New safety check (Rust and Python): a still whose fitted opacity is below 0.15 is refused — a clean 1024² noise texture
+had matched a 26 px diamond at a known placement (ncc 0.44) but calibrated to 0.078.

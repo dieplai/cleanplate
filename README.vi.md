@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml/badge.svg)](https://github.com/dieplai/cleanplate/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](./research)
+[![Rust](https://img.shields.io/badge/rust-core%20%2B%20CLI-B7410E.svg)](./crates)
 [![Status: research preview](https://img.shields.io/badge/status-research%20preview-orange.svg)](./CHANGELOG.md)
 
 [English](./README.md) · **Tiếng Việt**
@@ -70,19 +70,25 @@ và chỉ dùng ước lượng MAP ở những chỗ không frame nào nhìn th
 
 ```bash
 git clone https://github.com/dieplai/cleanplate.git && cd cleanplate
-pip install numpy opencv-python              # video cần thêm ffmpeg trong PATH
+cargo install --path crates/cleanplate-cli        # Rust ≥ 1.82; video cần thêm ffmpeg trong PATH
 
-python3 research/image.py anh.png anh_sach.png
-python3 research/pipeline.py clip.mp4 clip_sach.mov --codec prores    # hoặc --codec av1 / h264 / ffv1
-python3 tests/test_image.py                  # tự kiểm tra: xoá logo giả, từ chối ảnh sạch
+cleanplate anh.png anh_sach.png
+cleanplate clip.mp4 clip_sach.mov                 # .mov = ProRes 422 HQ; hoặc --codec av1 / h264 / ffv1
+cleanplate clip_1080p.mp4 ra.mov --guide clip_720p_sach.mov      # bản AI upscale + bản 720p đã làm sạch
 ```
+
+Một clip 720p dài 8 giây mất **3–9 giây** (cảnh tĩnh 9:16 mất 18 giây), một ảnh 2528×1696 mất **2 giây**, trên laptop
+12 nhân. **Nhanh hơn bản Python khoảng 16 lần với cùng chất lượng** (cổng kiểm tra có đáp án: trung bình 36.65 so với
+36.64 dB trên 8 clip; ảnh trùng khớp; `bench/rust_vs_python.sh`). File không có logo không bao giờ bị sửa: tool thoát với
+mã 2 và không ghi gì.
 
 **Để có chất lượng cao nhất:** tải bản **độ phân giải gốc** (trên Flow là 720p "Kích thước gốc"). Bản 1080p và 4K của
 Flow là bản AI upscale từ video **đã có logo**, nên logo bị vẽ lại và làm mất một phần nội dung bên dưới. Nếu bạn chỉ
 có bản 1080p, hãy đưa thêm bản 720p của cùng clip qua `--guide`.
 
-Code Python trong `research/` là bản tham chiếu và là đặc tả chạy được. Bước tiếp theo là lõi Rust với một file CLI
-duy nhất, và một trang kéo thả chạy hoàn toàn trong trình duyệt (xem lộ trình).
+`crates/cleanplate-core` chứa toàn bộ thuật toán, không đọc/ghi file hay gọi hệ điều hành (sẵn sàng cho WebAssembly);
+`crates/cleanplate-cli` lo phần đọc/ghi. Code Python trong `research/` được giữ làm đặc tả tham chiếu và benchmark
+nghiên cứu (`pip install numpy opencv-python`).
 
 ## Cách hoạt động
 
@@ -109,14 +115,13 @@ Chi tiết, bằng chứng và các ý tưởng đã thử rồi loại: [`docs/
   vùng mịn rất nhẹ.
 - **Logo trên nền trắng tuyệt đối** (chỉ sáng thêm ≤ 7 mức trên nền 253) không tool nào nhận ra, kể cả cleanplate;
   mắt thường cũng gần như không thấy.
-- **Tốc độ:** bản Python mất 1–4 phút cho một clip 8 giây. Lõi Rust nhắm tới vài giây.
 
 ## Lộ trình
 
 - [x] Pipeline video tham chiếu + benchmark có đáp án (8 clip)
 - [x] Ảnh: tự đo độ phủ, ảnh đã thu nhỏ hoặc nén lại
 - [x] Flow 1080p (`--guide`), video app Gemini, ảnh Flow, ảnh qua Zalo
-- [ ] Lõi Rust + một file CLI (Linux, macOS, Windows)
+- [x] Lõi Rust + một file CLI (Linux, macOS, Windows) — cùng chất lượng bản tham chiếu, nhanh hơn ~16 lần
 - [ ] Trang kéo thả chạy trong trình duyệt (WebAssembly + WebCodecs; file không rời khỏi máy bạn)
 - [ ] Tuỳ chọn upscale kết quả đã sạch
 

@@ -3,6 +3,7 @@ name = "cleanplate"
 version = "0.1.0"
 description = "Remove visible generator marks (Veo, Gemini) from video and stills, leaving a clean plate"
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 

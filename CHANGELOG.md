@@ -17,3 +17,9 @@
 - Ground-truth video bench (`research/synth.py`, `score_gt.py`), resolution bench, LPIPS scorer.
 - Ground-truth still bench (`research/img_bench.py`): PNG, JPEG, resized copies.
 - Real-file checks: Veo 720p/1080p, Gemini-app video, Gemini and Flow stills, a Zalo round trip.
+
+### Rust core + CLI
+- `crates/cleanplate-core` (no IO, wasm-ready) and the `cleanplate` binary: video (ffmpeg pipes) and stills (PNG/JPEG/WebP).
+- Ports of the OpenCV primitives used (golden-tested), DIS optical flow matched to OpenCV, FFT template matching.
+- Ground-truth gate vs the Python reference: mean 36.65 vs 36.64 dB, ~16× faster (3–18 s per 8 s clip), stills 2× faster.
+- Stills: refuse a fitted opacity < 0.15 (also in `research/image.py`).
