@@ -6,26 +6,46 @@ use cleanplate_core::Plane;
 
 fn npy(name: &str) -> (Vec<u64>, npyz::NpyFile<std::io::BufReader<std::fs::File>>) {
     let p = format!("{}/tests/fixtures/{name}.npy", env!("CARGO_MANIFEST_DIR"));
-    let f = npyz::NpyFile::new(std::io::BufReader::new(std::fs::File::open(&p).expect(&p))).unwrap();
+    let f =
+        npyz::NpyFile::new(std::io::BufReader::new(std::fs::File::open(&p).expect(&p))).unwrap();
     (f.shape().to_vec(), f)
 }
 pub fn plane(name: &str) -> Plane {
     let (s, f) = npy(name);
-    Plane { w: s[1] as usize, h: s[0] as usize, data: f.into_vec::<f32>().unwrap() }
+    Plane {
+        w: s[1] as usize,
+        h: s[0] as usize,
+        data: f.into_vec::<f32>().unwrap(),
+    }
 }
 fn mask(name: &str) -> (Vec<bool>, usize, usize) {
     let (s, f) = npy(name);
-    (f.into_vec::<u8>().unwrap().into_iter().map(|v| v != 0).collect(), s[1] as usize, s[0] as usize)
+    (
+        f.into_vec::<u8>()
+            .unwrap()
+            .into_iter()
+            .map(|v| v != 0)
+            .collect(),
+        s[1] as usize,
+        s[0] as usize,
+    )
 }
 fn max_err(a: &Plane, b: &Plane) -> f32 {
     assert_eq!((a.w, a.h), (b.w, b.h), "size");
-    a.data.iter().zip(&b.data).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max)
+    a.data
+        .iter()
+        .zip(&b.data)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0, f32::max)
 }
 
 #[test]
 fn gaussian_matches_opencv() {
     for (inp, s) in [("a", 1.0), ("a", 3.0), ("b", 1.0), ("b", 3.0)] {
-        let e = max_err(&gaussian_blur(&plane(&format!("in_{inp}")), s), &plane(&format!("gauss_{inp}_{s}")));
+        let e = max_err(
+            &gaussian_blur(&plane(&format!("in_{inp}")), s),
+            &plane(&format!("gauss_{inp}_{s}")),
+        );
         assert!(e <= 1e-3, "{inp} sigma {s}: {e}");
     }
 }
@@ -49,7 +69,12 @@ fn dilate_matches_opencv() {
 #[test]
 fn harmonic_matches_python() {
     let (hole, _, _) = mask("hole_a");
-    assert!(max_err(&harmonic_fill(&plane("in_a"), &hole, 150), &plane("harmonic_a")) <= 1e-3);
+    assert!(
+        max_err(
+            &harmonic_fill(&plane("in_a"), &hole, 150),
+            &plane("harmonic_a")
+        ) <= 1e-3
+    );
 }
 
 #[test]
@@ -60,7 +85,12 @@ fn resize_area_matches_opencv() {
 
 #[test]
 fn resize_cubic_matches_opencv() {
-    assert!(max_err(&resize_cubic(&plane("in_a"), 56, 44), &plane("cubic_a_56x44")) <= 1e-2);
+    assert!(
+        max_err(
+            &resize_cubic(&plane("in_a"), 56, 44),
+            &plane("cubic_a_56x44")
+        ) <= 1e-2
+    );
 }
 
 #[test]
@@ -68,7 +98,10 @@ fn remap_matches_opencv() {
     let (src, mx, my) = (plane("in_a"), plane("map_x"), plane("map_y"));
     for (interp, i) in [(Interp::Linear, "linear"), (Interp::Cubic, "cubic")] {
         for (border, b) in [(Border::Replicate, "rep"), (Border::Constant(0.0), "const")] {
-            let e = max_err(&remap(&src, &mx, &my, interp, border), &plane(&format!("remap_{i}_{b}")));
+            let e = max_err(
+                &remap(&src, &mx, &my, interp, border),
+                &plane(&format!("remap_{i}_{b}")),
+            );
             assert!(e <= 1e-2, "{i} {b}: {e}");
         }
     }
@@ -77,7 +110,11 @@ fn remap_matches_opencv() {
 #[test]
 fn match_template_matches_opencv() {
     let r = cleanplate_core::ncc::match_template_ccoeff_normed(&plane("in_b"), &plane("tpl_b"));
-    assert!(max_err(&r, &plane("match_b")) <= 1e-4, "{}", max_err(&r, &plane("match_b")));
+    assert!(
+        max_err(&r, &plane("match_b")) <= 1e-4,
+        "{}",
+        max_err(&r, &plane("match_b"))
+    );
 }
 
 #[test]
@@ -91,7 +128,14 @@ fn resize_by_factor_matches_opencv() {
 #[test]
 fn tv_matches_python() {
     let (m, _, _) = mask("tv_mask");
-    let out = cleanplate_core::tv::tv_refine(&plane("tv_mu"), &plane("tv_w"), &m, &plane("tv_lam"), 300, 1.0);
+    let out = cleanplate_core::tv::tv_refine(
+        &plane("tv_mu"),
+        &plane("tv_w"),
+        &m,
+        &plane("tv_lam"),
+        300,
+        1.0,
+    );
     let e = max_err(&out, &plane("tv_out"));
     assert!(e <= 1e-2, "{e}");
 }

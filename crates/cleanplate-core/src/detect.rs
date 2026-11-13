@@ -31,7 +31,11 @@ fn hp_mean(corners: &[&Plane]) -> Plane {
     let parts: Vec<Plane> = crate::par_map(samp.len(), |i| {
         let f = samp[i];
         let b = gaussian_blur(f, 3.0);
-        Plane { w: f.w, h: f.h, data: f.data.iter().zip(&b.data).map(|(a, b)| a - b).collect() }
+        Plane {
+            w: f.w,
+            h: f.h,
+            data: f.data.iter().zip(&b.data).map(|(a, b)| a - b).collect(),
+        }
     });
     let mut acc = vec![0f64; corners[0].w * corners[0].h];
     for p in &parts {
@@ -40,12 +44,21 @@ fn hp_mean(corners: &[&Plane]) -> Plane {
         }
     }
     let n = parts.len() as f64;
-    Plane { w: corners[0].w, h: corners[0].h, data: acc.iter().map(|&v| (v / n) as f32).collect() }
+    Plane {
+        w: corners[0].w,
+        h: corners[0].h,
+        data: acc.iter().map(|&v| (v / n) as f32).collect(),
+    }
 }
 
 /// Find the generator mark in the bottom-right corner crops (all frames, luma, u8-valued planes).
 /// Refuses (Err) below 0.45 at a known placement, below max(min_ncc, 0.75) elsewhere.
-pub fn detect_video(corners: &[&Plane], frame_w: usize, frame_h: usize, min_ncc: f32) -> Result<Detection, Refusal> {
+pub fn detect_video(
+    corners: &[&Plane],
+    frame_w: usize,
+    frame_h: usize,
+    min_ncc: f32,
+) -> Result<Detection, Refusal> {
     let (cw, ch) = (corners[0].w, corners[0].h);
     let hp = hp_mean(corners);
     let sc2 = ((frame_w.min(frame_h) as f64 / 720.0) * 1000.0).round() / 1000.0;
@@ -68,7 +81,11 @@ pub fn detect_video(corners: &[&Plane], frame_w: usize, frame_h: usize, min_ncc:
                 continue;
             }
             let b = gaussian_blur(&a, 3.0);
-            let t = Plane { w: a.w, h: a.h, data: a.data.iter().zip(&b.data).map(|(x, y)| x - y).collect() };
+            let t = Plane {
+                w: a.w,
+                h: a.h,
+                data: a.data.iter().zip(&b.data).map(|(x, y)| x - y).collect(),
+            };
             let (v, x, y) = max_loc(&match_template_ccoeff_normed(&hp, &t));
             if best.as_ref().is_none_or(|b| v > b.0) {
                 best = Some((v, m, sc, x, y, a));
@@ -77,19 +94,41 @@ pub fn detect_video(corners: &[&Plane], frame_w: usize, frame_h: usize, min_ncc:
     }
     let (ncc, mark, sc, mx, my, a) = best.expect("at least one template fits the corner");
     let (mr, mb) = (cw as f64 - (mx + a.w) as f64, ch as f64 - (my + a.h) as f64);
-    let at_known = mark.known.iter().any(|&(r, b)| (mr - r as f64 * sc).abs() <= 3.0 && (mb - b as f64 * sc).abs() <= 3.0);
+    let at_known = mark
+        .known
+        .iter()
+        .any(|&(r, b)| (mr - r as f64 * sc).abs() <= 3.0 && (mb - b as f64 * sc).abs() <= 3.0);
     let floor = if at_known { 0.45 } else { min_ncc.max(0.75) };
     if ncc < floor {
-        return Err(Refusal { best_ncc: ncc, floor });
+        return Err(Refusal {
+            best_ncc: ncc,
+            floor,
+        });
     }
     // Flow 1080p: the re-drawn mark can match the 1.5x 720p glyph better on bright backgrounds; at its known placement it
     // is the same mark, so use the native 1080p support.
     if mark.name == "veo-small-720p.png" && (sc - 1.5).abs() < 0.01 && at_known {
         let m = by_name("veo-small-1080p.png");
         let a = m.alpha.clone();
-        return Ok(Detection { mark: m, scale: 1.0, x: cw - 24 - a.w, y: ch - 24 - a.h, ncc, at_known, alpha: a });
+        return Ok(Detection {
+            mark: m,
+            scale: 1.0,
+            x: cw - 24 - a.w,
+            y: ch - 24 - a.h,
+            ncc,
+            at_known,
+            alpha: a,
+        });
     }
-    Ok(Detection { mark, scale: sc as f32, x: mx, y: my, ncc, at_known, alpha: a })
+    Ok(Detection {
+        mark,
+        scale: sc as f32,
+        x: mx,
+        y: my,
+        ncc,
+        at_known,
+        alpha: a,
+    })
 }
 
 fn median(v: &mut [f32]) -> f32 {
@@ -108,7 +147,12 @@ pub fn shot_cuts(thumbs: &[Plane]) -> Vec<(usize, usize)> {
     let n = thumbs.len();
     let mut d = vec![0f32; n];
     for i in 1..n {
-        let s: f64 = thumbs[i].data.iter().zip(&thumbs[i - 1].data).map(|(a, b)| (a - b).abs() as f64).sum();
+        let s: f64 = thumbs[i]
+            .data
+            .iter()
+            .zip(&thumbs[i - 1].data)
+            .map(|(a, b)| (a - b).abs() as f64)
+            .sum();
         d[i] = (s / thumbs[i].data.len() as f64) as f32;
     }
     let mut cuts = vec![0usize];

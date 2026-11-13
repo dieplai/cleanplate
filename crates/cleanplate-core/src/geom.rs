@@ -58,7 +58,10 @@ pub fn resize_area_fx(p: &Plane, f: f64) -> Plane {
 }
 
 fn fx_size(p: &Plane, f: f64) -> (usize, usize) {
-    ((p.w as f64 * f).round_ties_even() as usize, (p.h as f64 * f).round_ties_even() as usize)
+    (
+        (p.w as f64 * f).round_ties_even() as usize,
+        (p.h as f64 * f).round_ties_even() as usize,
+    )
 }
 
 fn area_impl(p: &Plane, w: usize, h: usize, sx: f64, sy: f64) -> Plane {
@@ -126,8 +129,12 @@ pub fn remap(src: &Plane, mapx: &Plane, mapy: &Plane, interp: Interp, border: Bo
     let mut out = Plane::new(mapx.w, mapx.h);
     let fetch = |x: isize, y: isize| -> Option<f32> {
         match border {
-            Border::Replicate => Some(src.data[(y.clamp(0, h - 1) * w + x.clamp(0, w - 1)) as usize]),
-            Border::Constant(_) => (x >= 0 && x < w && y >= 0 && y < h).then(|| src.data[(y * w + x) as usize]),
+            Border::Replicate => {
+                Some(src.data[(y.clamp(0, h - 1) * w + x.clamp(0, w - 1)) as usize])
+            }
+            Border::Constant(_) => {
+                (x >= 0 && x < w && y >= 0 && y < h).then(|| src.data[(y * w + x) as usize])
+            }
         }
     };
     let cval = match border {
@@ -137,20 +144,28 @@ pub fn remap(src: &Plane, mapx: &Plane, mapy: &Plane, interp: Interp, border: Bo
     for (o, (&mx, &my)) in out.data.iter_mut().zip(mapx.data.iter().zip(&mapy.data)) {
         let (ix, iy) = ((mx * TAB).round() as isize, (my * TAB).round() as isize);
         let (sx, sy) = (ix.div_euclid(TAB as isize), iy.div_euclid(TAB as isize));
-        let (fx, fy) = (ix.rem_euclid(TAB as isize) as f32 / TAB, iy.rem_euclid(TAB as isize) as f32 / TAB);
+        let (fx, fy) = (
+            ix.rem_euclid(TAB as isize) as f32 / TAB,
+            iy.rem_euclid(TAB as isize) as f32 / TAB,
+        );
         *o = match interp {
             Interp::Linear => {
-                if matches!(border, Border::Constant(_)) && (sx >= w || sx + 1 < 0 || sy >= h || sy + 1 < 0) {
+                if matches!(border, Border::Constant(_))
+                    && (sx >= w || sx + 1 < 0 || sy >= h || sy + 1 < 0)
+                {
                     cval
                 } else {
                     let v = |x, y| fetch(x, y).unwrap_or(cval);
                     let (wx, wy) = ([1.0 - fx, fx], [1.0 - fy, fy]);
-                    wy[0] * (wx[0] * v(sx, sy) + wx[1] * v(sx + 1, sy)) + wy[1] * (wx[0] * v(sx, sy + 1) + wx[1] * v(sx + 1, sy + 1))
+                    wy[0] * (wx[0] * v(sx, sy) + wx[1] * v(sx + 1, sy))
+                        + wy[1] * (wx[0] * v(sx, sy + 1) + wx[1] * v(sx + 1, sy + 1))
                 }
             }
             Interp::Cubic => {
                 let (x0, y0) = (sx - 1, sy - 1);
-                if matches!(border, Border::Constant(_)) && (x0 >= w || x0 + 4 <= 0 || y0 >= h || y0 + 4 <= 0) {
+                if matches!(border, Border::Constant(_))
+                    && (x0 >= w || x0 + 4 <= 0 || y0 >= h || y0 + 4 <= 0)
+                {
                     cval
                 } else {
                     let (cx, cy) = (cubic_coeffs(fx), cubic_coeffs(fy));

@@ -50,7 +50,9 @@ fn sep_filter(p: &Plane, kx: &[f32], ky: &[f32]) -> Plane {
 /// OpenCV `getGaussianKernel(n, sigma, CV_32F)` for sigma > 0 (computed in f64, normalised, cast).
 fn gaussian_kernel(n: usize, sigma: f64) -> Vec<f32> {
     let c = (n as f64 - 1.0) / 2.0;
-    let k: Vec<f64> = (0..n).map(|i| (-((i as f64 - c).powi(2)) / (2.0 * sigma * sigma)).exp()).collect();
+    let k: Vec<f64> = (0..n)
+        .map(|i| (-((i as f64 - c).powi(2)) / (2.0 * sigma * sigma)).exp())
+        .collect();
     let s: f64 = k.iter().sum();
     k.iter().map(|v| (v / s) as f32).collect()
 }
@@ -75,13 +77,19 @@ pub fn dilate_rect(m: &[bool], w: usize, h: usize, kw: usize, kh: usize) -> Vec<
     let mut horiz = vec![false; w * h];
     for y in 0..h {
         for x in 0..w {
-            let (lo, hi) = ((x as isize - rx).max(0) as usize, ((x as isize - rx + kw as isize - 1).min(w as isize - 1)) as usize);
+            let (lo, hi) = (
+                (x as isize - rx).max(0) as usize,
+                ((x as isize - rx + kw as isize - 1).min(w as isize - 1)) as usize,
+            );
             horiz[y * w + x] = m[y * w + lo..=y * w + hi].iter().any(|&v| v);
         }
     }
     let mut out = vec![false; w * h];
     for y in 0..h {
-        let (lo, hi) = ((y as isize - ry).max(0) as usize, ((y as isize - ry + kh as isize - 1).min(h as isize - 1)) as usize);
+        let (lo, hi) = (
+            (y as isize - ry).max(0) as usize,
+            ((y as isize - ry + kh as isize - 1).min(h as isize - 1)) as usize,
+        );
         for x in 0..w {
             out[y * w + x] = (lo..=hi).any(|yy| horiz[yy * w + x]);
         }
@@ -93,8 +101,18 @@ pub fn dilate_rect(m: &[bool], w: usize, h: usize, kw: usize, kh: usize) -> Vec<
 /// 4-neighbour average with edge (replicate) padding, updating hole pixels only.
 pub fn harmonic_fill(p: &Plane, hole: &[bool], iters: usize) -> Plane {
     let (w, h) = (p.w, p.h);
-    let known: Vec<f32> = p.data.iter().zip(hole).filter(|(_, &o)| !o).map(|(v, _)| *v).collect();
-    let mean = if known.is_empty() { 0.0 } else { (known.iter().map(|&v| v as f64).sum::<f64>() / known.len() as f64) as f32 };
+    let known: Vec<f32> = p
+        .data
+        .iter()
+        .zip(hole)
+        .filter(|(_, &o)| !o)
+        .map(|(v, _)| *v)
+        .collect();
+    let mean = if known.is_empty() {
+        0.0
+    } else {
+        (known.iter().map(|&v| v as f64).sum::<f64>() / known.len() as f64) as f32
+    };
     let mut g = p.clone();
     for (v, &o) in g.data.iter_mut().zip(hole) {
         if o {

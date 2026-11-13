@@ -70,7 +70,7 @@ và chỉ dùng ước lượng MAP ở những chỗ không frame nào nhìn th
 
 ```bash
 git clone https://github.com/dieplai/cleanplate.git && cd cleanplate
-cargo install --path crates/cleanplate-cli        # Rust ≥ 1.82; video cần thêm ffmpeg trong PATH
+cargo install --path crates/cleanplate-cli        # Rust ≥ 1.88; video cần thêm ffmpeg trong PATH
 
 cleanplate anh.png anh_sach.png
 cleanplate clip.mp4 clip_sach.mov                 # .mov = ProRes 422 HQ; hoặc --codec av1 / h264 / ffv1

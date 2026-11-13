@@ -11,7 +11,11 @@ pub fn match_template_ccoeff_normed(img: &Plane, tpl: &Plane) -> Plane {
     let tz: Vec<f64> = tpl.data.iter().map(|&v| v as f64 - tmean).collect();
     let tnorm = tz.iter().map(|v| v * v).sum::<f64>().sqrt();
     // integral images of I and I² (f64) for the window statistics
-    let (sw, mut s1, mut s2) = (iw + 1, vec![0f64; (iw + 1) * (ih + 1)], vec![0f64; (iw + 1) * (ih + 1)]);
+    let (sw, mut s1, mut s2) = (
+        iw + 1,
+        vec![0f64; (iw + 1) * (ih + 1)],
+        vec![0f64; (iw + 1) * (ih + 1)],
+    );
     for y in 0..ih {
         for x in 0..iw {
             let v = img.data[y * iw + x] as f64;
@@ -20,7 +24,9 @@ pub fn match_template_ccoeff_normed(img: &Plane, tpl: &Plane) -> Plane {
             s2[i] = v * v + s2[i - 1] + s2[i - sw] - s2[i - sw - 1];
         }
     }
-    let rect = |s: &[f64], x: usize, y: usize| s[(y + th) * sw + x + tw] - s[y * sw + x + tw] - s[(y + th) * sw + x] + s[y * sw + x];
+    let rect = |s: &[f64], x: usize, y: usize| {
+        s[(y + th) * sw + x + tw] - s[y * sw + x + tw] - s[(y + th) * sw + x] + s[y * sw + x]
+    };
     let row = |y: usize| -> Vec<f32> {
         (0..ow)
             .map(|x| {
@@ -43,7 +49,11 @@ pub fn match_template_ccoeff_normed(img: &Plane, tpl: &Plane) -> Plane {
             .collect()
     };
     let rows: Vec<Vec<f32>> = crate::par_map(oh, row);
-    Plane { w: ow, h: oh, data: rows.concat() }
+    Plane {
+        w: ow,
+        h: oh,
+        data: rows.concat(),
+    }
 }
 
 /// First (row-major) maximum: (value, x, y).
@@ -91,7 +101,16 @@ impl CorrPlan {
                 s2[i] = v * v + s2[i - 1] + s2[i - sw] - s2[i - sw - 1];
             }
         }
-        CorrPlan { img_w: img.w, img_h: img.h, n, m, fft, spec, s1, s2 }
+        CorrPlan {
+            img_w: img.w,
+            img_h: img.h,
+            n,
+            m,
+            fft,
+            spec,
+            s1,
+            s2,
+        }
     }
 
     /// Same result as [`match_template_ccoeff_normed`] (correlation through the image spectrum).
@@ -101,7 +120,10 @@ impl CorrPlan {
         let (mut ts, tnorm) = self.zero_mean(tpl, |v| C { re: v, im: 0.0 });
         self.fft.run(&mut ts, false, tpl.h);
         for (t, s) in ts.iter_mut().zip(&self.spec) {
-            *t = C { re: s.re * t.re + s.im * t.im, im: s.im * t.re - s.re * t.im }; // spec · conj(tspec)
+            *t = C {
+                re: s.re * t.re + s.im * t.im,
+                im: s.im * t.re - s.re * t.im,
+            }; // spec · conj(tspec)
         }
         self.fft.run(&mut ts, true, m);
         let sc = 1.0 / (n * m) as f64;
@@ -119,19 +141,40 @@ impl CorrPlan {
         for ky in 0..m {
             for kx in 0..n {
                 let (k, km) = (ky * n + kx, ((m - ky) % m) * n + (n - kx) % n);
-                let (zk, zc) = (z[k], C { re: z[km].re, im: -z[km].im }); // Z[k], conj(Z[-k])
-                // T1 = (Z[k] + conj Z[-k]) / 2, T2 = (Z[k] - conj Z[-k]) / 2i
-                let t1 = C { re: 0.5 * (zk.re + zc.re), im: 0.5 * (zk.im + zc.im) };
-                let t2 = C { re: 0.5 * (zk.im - zc.im), im: -0.5 * (zk.re - zc.re) };
+                let (zk, zc) = (
+                    z[k],
+                    C {
+                        re: z[km].re,
+                        im: -z[km].im,
+                    },
+                ); // Z[k], conj(Z[-k])
+                   // T1 = (Z[k] + conj Z[-k]) / 2, T2 = (Z[k] - conj Z[-k]) / 2i
+                let t1 = C {
+                    re: 0.5 * (zk.re + zc.re),
+                    im: 0.5 * (zk.im + zc.im),
+                };
+                let t2 = C {
+                    re: 0.5 * (zk.im - zc.im),
+                    im: -0.5 * (zk.re - zc.re),
+                };
                 // Y = S · (conj T1 + i · conj T2)
-                let f = C { re: t1.re + t2.im, im: -t1.im + t2.re };
+                let f = C {
+                    re: t1.re + t2.im,
+                    im: -t1.im + t2.re,
+                };
                 let s = self.spec[k];
-                y[k] = C { re: s.re * f.re - s.im * f.im, im: s.re * f.im + s.im * f.re };
+                y[k] = C {
+                    re: s.re * f.re - s.im * f.im,
+                    im: s.re * f.im + s.im * f.re,
+                };
             }
         }
         self.fft.run(&mut y, true, m);
         let sc = 1.0 / (n * m) as f64;
-        (self.normalise(t1.w, t1.h, n1, |i| y[i].re * sc), self.normalise(t2.w, t2.h, n2, |i| y[i].im * sc))
+        (
+            self.normalise(t1.w, t1.h, n1, |i| y[i].re * sc),
+            self.normalise(t2.w, t2.h, n2, |i| y[i].im * sc),
+        )
     }
 
     /// Write the zero-mean `tpl` into the imaginary part of `z`; returns its norm.
@@ -149,7 +192,11 @@ impl CorrPlan {
         tnorm.sqrt()
     }
 
-    fn zero_mean(&self, tpl: &Plane, put: impl Fn(f64) -> crate::fft::C) -> (Vec<crate::fft::C>, f64) {
+    fn zero_mean(
+        &self,
+        tpl: &Plane,
+        put: impl Fn(f64) -> crate::fft::C,
+    ) -> (Vec<crate::fft::C>, f64) {
         let cnt = (tpl.w * tpl.h) as f64;
         let tmean = tpl.data.iter().map(|&v| v as f64).sum::<f64>() / cnt;
         let mut ts = vec![crate::fft::C::default(); self.n * self.m];
@@ -167,7 +214,9 @@ impl CorrPlan {
     fn normalise(&self, tw: usize, th: usize, tnorm: f64, num_at: impl Fn(usize) -> f64) -> Plane {
         let cnt = (tw * th) as f64;
         let (ow, oh, sw) = (self.img_w - tw + 1, self.img_h - th + 1, self.img_w + 1);
-        let rect = |s: &[f64], x: usize, y: usize| s[(y + th) * sw + x + tw] - s[y * sw + x + tw] - s[(y + th) * sw + x] + s[y * sw + x];
+        let rect = |s: &[f64], x: usize, y: usize| {
+            s[(y + th) * sw + x + tw] - s[y * sw + x + tw] - s[(y + th) * sw + x] + s[y * sw + x]
+        };
         let mut out = Plane::new(ow, oh);
         for y in 0..oh {
             for x in 0..ow {

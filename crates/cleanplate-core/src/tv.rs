@@ -3,18 +3,38 @@ use crate::Plane;
 
 /// Explicit gradient descent with a per-pixel (Jacobi-preconditioned) step 0.9 / (2w + 8λ/ε). Forward differences
 /// replicate the last row/column; the divergence wraps around (numpy `np.roll`), exactly as the reference.
-pub fn tv_refine(mu: &Plane, w: &Plane, mask: &[bool], lam: &Plane, iters: usize, eps: f32) -> Plane {
+pub fn tv_refine(
+    mu: &Plane,
+    w: &Plane,
+    mask: &[bool],
+    lam: &Plane,
+    iters: usize,
+    eps: f32,
+) -> Plane {
     let (nw, nh) = (mu.w, mu.h);
     let mut img = mu.clone();
-    let tau: Vec<f32> = w.data.iter().zip(&lam.data).map(|(&wv, &l)| 0.9 / (2.0 * wv + 8.0 * l / eps)).collect();
+    let tau: Vec<f32> = w
+        .data
+        .iter()
+        .zip(&lam.data)
+        .map(|(&wv, &l)| 0.9 / (2.0 * wv + 8.0 * l / eps))
+        .collect();
     let idx: Vec<usize> = (0..nw * nh).filter(|&k| mask[k]).collect();
     let (mut px, mut py) = (vec![0f32; nw * nh], vec![0f32; nw * nh]);
     for _ in 0..iters {
         for y in 0..nh {
             for x in 0..nw {
                 let k = y * nw + x;
-                let gx = if x + 1 < nw { img.data[k + 1] - img.data[k] } else { 0.0 };
-                let gy = if y + 1 < nh { img.data[k + nw] - img.data[k] } else { 0.0 };
+                let gx = if x + 1 < nw {
+                    img.data[k + 1] - img.data[k]
+                } else {
+                    0.0
+                };
+                let gy = if y + 1 < nh {
+                    img.data[k + nw] - img.data[k]
+                } else {
+                    0.0
+                };
                 let n = (gx * gx + gy * gy + eps * eps).sqrt();
                 px[k] = gx / n;
                 py[k] = gy / n;

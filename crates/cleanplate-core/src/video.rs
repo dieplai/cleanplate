@@ -37,7 +37,12 @@ pub struct Params {
 
 impl Default for Params {
     fn default() -> Self {
-        Params { k: 8, lam: -1.0, edge_tv: true, tv_range_white: 235.0 }
+        Params {
+            k: 8,
+            lam: -1.0,
+            edge_tv: true,
+            tv_range_white: 235.0,
+        }
     }
 }
 
@@ -69,7 +74,11 @@ pub struct Rebuilt {
 
 /// Opaque-mode decision and mark support (pipeline.py lines 138–145).
 pub fn prepare_alpha(det: &Detection, opaque_flag: i32, has_guide: bool) -> Prepared {
-    let mut op = if opaque_flag >= 0 { opaque_flag } else { det.mark.opaque.map(|v| v as i32).unwrap_or(-1) };
+    let mut op = if opaque_flag >= 0 {
+        opaque_flag
+    } else {
+        det.mark.opaque.map(|v| v as i32).unwrap_or(-1)
+    };
     if has_guide && opaque_flag < 0 && op >= 0 {
         op = 3; // with real guide content, also replace the upscaler's ringing/blocky halo around the strokes
     }
@@ -82,9 +91,18 @@ pub fn prepare_alpha(det: &Detection, opaque_flag: i32, has_guide: bool) -> Prep
         let k = (2 * op + 1) as usize;
         let m: Vec<bool> = a.data.iter().map(|&v| v > 0.08).collect();
         let d = dilate_rect(&m, a.w, a.h, k, k);
-        a = Plane { w: a.w, h: a.h, data: d.iter().map(|&b| if b { 0.95 } else { 0.0 }).collect() };
+        a = Plane {
+            w: a.w,
+            h: a.h,
+            data: d.iter().map(|&b| if b { 0.95 } else { 0.0 }).collect(),
+        };
     }
-    Prepared { alpha: a, mx, my, op }
+    Prepared {
+        alpha: a,
+        mx,
+        my,
+        op,
+    }
 }
 
 /// Working region: mark + 40 px of context, even-aligned, inside the corner crop (pipeline.py lines 148–151).
@@ -95,7 +113,12 @@ pub fn region_bounds(p: &Prepared, crop_w: usize, crop_h: usize) -> Region {
     let y0 = (p.my - MG).max(0) & !1;
     let x1 = (crop_w as i64).min((p.mx + tw + MG + 1) & !1);
     let y1 = (crop_h as i64).min((p.my + th + MG + 1) & !1);
-    Region { x0: x0 as usize, y0: y0 as usize, w: (x1 - x0) as usize, h: (y1 - y0) as usize }
+    Region {
+        x0: x0 as usize,
+        y0: y0 as usize,
+        w: (x1 - x0) as usize,
+        h: (y1 - y0) as usize,
+    }
 }
 
 /// Alpha on the region grid, clipped to [0, 0.95].
@@ -115,12 +138,18 @@ pub fn place_alpha(p: &Prepared, r: &Region) -> Plane {
 
 fn sub2(p: &Plane) -> Plane {
     let (w, h) = (p.w.div_ceil(2), p.h.div_ceil(2));
-    Plane { w, h, data: (0..w * h).map(|k| p.at(2 * (k % w), 2 * (k / w))).collect() }
+    Plane {
+        w,
+        h,
+        data: (0..w * h).map(|k| p.at(2 * (k % w), 2 * (k / w))).collect(),
+    }
 }
 
 fn sub2_mask(m: &[bool], w: usize, h: usize) -> Vec<bool> {
     let (cw, ch) = (w.div_ceil(2), h.div_ceil(2));
-    (0..cw * ch).map(|k| m[2 * (k / cw) * w + 2 * (k % cw)]).collect()
+    (0..cw * ch)
+        .map(|k| m[2 * (k / cw) * w + 2 * (k % cw)])
+        .collect()
 }
 
 /// Chroma alpha with H.264's default 4:2:0 siting ("left"): horizontal [¼ ½ ¼] at even columns, vertical pair mean.
@@ -131,7 +160,11 @@ fn chroma_alpha(ay: &Plane) -> Plane {
     let mut out = Plane::new(cw, ch);
     for y in 0..ch {
         for x in 0..cw {
-            let f = |yy: usize| 0.25 * hz(2 * x as isize - 1, yy) + 0.5 * hz(2 * x as isize, yy) + 0.25 * hz(2 * x as isize + 1, yy);
+            let f = |yy: usize| {
+                0.25 * hz(2 * x as isize - 1, yy)
+                    + 0.5 * hz(2 * x as isize, yy)
+                    + 0.25 * hz(2 * x as isize + 1, yy)
+            };
             out.set(x, y, 0.5 * (f(2 * y) + f(2 * y + 1)));
         }
     }
@@ -139,7 +172,16 @@ fn chroma_alpha(ay: &Plane) -> Plane {
 }
 
 fn invert(j: &Plane, a: &Plane, l: f32) -> Plane {
-    Plane { w: j.w, h: j.h, data: j.data.iter().zip(&a.data).map(|(&jv, &av)| (jv - av * l) / (1.0 - av)).collect() }
+    Plane {
+        w: j.w,
+        h: j.h,
+        data: j
+            .data
+            .iter()
+            .zip(&a.data)
+            .map(|(&jv, &av)| (jv - av * l) / (1.0 - av))
+            .collect(),
+    }
 }
 
 fn median(v: &mut [f32]) -> f32 {
@@ -179,7 +221,8 @@ impl Ctx<'_> {
         for p in [&mut f.u, &mut f.v] {
             let sub = harmonic_fill(&p.crop(x0, y0, x1 - x0, y1 - y0), self.mflow_w, 150);
             for y in y0..y1 {
-                p.data[y * p.w + x0..y * p.w + x1].copy_from_slice(&sub.data[(y - y0) * sub.w..(y - y0 + 1) * sub.w]);
+                p.data[y * p.w + x0..y * p.w + x1]
+                    .copy_from_slice(&sub.data[(y - y0) * sub.w..(y - y0 + 1) * sub.w]);
             }
         }
         f
@@ -187,13 +230,26 @@ impl Ctx<'_> {
 
     /// One frame of the rebuild; returns (Y, U, V, clean weight, total weight).
     #[allow(clippy::too_many_arguments)]
-    fn fuse(&self, t: usize, offs: &[i64], s0: usize, s1: usize, k: usize, lam: f32, flows: &HashMap<(usize, usize), Flow>) -> (Plane, Plane, Plane, f64, f64) {
+    fn fuse(
+        &self,
+        t: usize,
+        offs: &[i64],
+        s0: usize,
+        s1: usize,
+        k: usize,
+        lam: f32,
+        flows: &HashMap<(usize, usize), Flow>,
+    ) -> (Plane, Plane, Plane, f64, f64) {
         let (w, h, n) = (self.w, self.h, self.w * self.h);
         let ay = self.ay;
         let mut cy = vec![self.ry[t].clone()];
         let mut cu = vec![self.ru[t].clone()];
         let mut cv = vec![self.rv[t].clone()];
-        let mut ws = vec![Plane { w, h, data: ay.data.iter().map(|a| (1.0 - a) * (1.0 - a)).collect() }];
+        let mut ws = vec![Plane {
+            w,
+            h,
+            data: ay.data.iter().map(|a| (1.0 - a) * (1.0 - a)).collect(),
+        }];
         let mut cl: Vec<Vec<bool>> = vec![ay.data.iter().map(|&a| a < 0.02).collect()];
         let (mut clean_w, mut tot_w) = (0f64, 0f64);
         for &o in offs {
@@ -203,8 +259,16 @@ impl Ctx<'_> {
             }
             let s = s as usize;
             let (fts, fst) = (&flows[&(t, s)], &flows[&(s, t)]);
-            let px = Plane { w, h, data: (0..n).map(|i| (i % w) as f32 + fts.u.data[i]).collect() };
-            let py = Plane { w, h, data: (0..n).map(|i| (i / w) as f32 + fts.v.data[i]).collect() };
+            let px = Plane {
+                w,
+                h,
+                data: (0..n).map(|i| (i % w) as f32 + fts.u.data[i]).collect(),
+            };
+            let py = Plane {
+                w,
+                h,
+                data: (0..n).map(|i| (i / w) as f32 + fts.v.data[i]).collect(),
+            };
             let bu = remap(&fst.u, &px, &py, Interp::Linear, Border::Replicate);
             let bv = remap(&fst.v, &px, &py, Interp::Linear, Border::Replicate);
             let a_src = remap(ay, &px, &py, Interp::Linear, Border::Constant(0.0));
@@ -212,16 +276,48 @@ impl Ctx<'_> {
             let wt: Vec<f32> = (0..n)
                 .map(|i| {
                     let fb = (fts.u.data[i] + bu.data[i]).hypot(fts.v.data[i] + bv.data[i]);
-                    let inb = px.data[i] >= 0.0 && px.data[i] <= (w - 1) as f32 && py.data[i] >= 0.0 && py.data[i] <= (h - 1) as f32;
-                    (1.0 - a_src.data[i]).powi(2) * (-(fb / 0.7).powi(2)).exp() * if inb { 1.0 } else { 0.0 } * decay
+                    let inb = px.data[i] >= 0.0
+                        && px.data[i] <= (w - 1) as f32
+                        && py.data[i] >= 0.0
+                        && py.data[i] <= (h - 1) as f32;
+                    (1.0 - a_src.data[i]).powi(2)
+                        * (-(fb / 0.7).powi(2)).exp()
+                        * if inb { 1.0 } else { 0.0 }
+                        * decay
                 })
                 .collect();
-            cy.push(remap(&self.ry[s], &px, &py, Interp::Cubic, Border::Replicate));
+            cy.push(remap(
+                &self.ry[s],
+                &px,
+                &py,
+                Interp::Cubic,
+                Border::Replicate,
+            ));
             let (hx, hy) = (sub2(&px), sub2(&py));
-            let hx = Plane { w: hx.w, h: hx.h, data: hx.data.iter().map(|v| v / 2.0).collect() };
-            let hy = Plane { w: hy.w, h: hy.h, data: hy.data.iter().map(|v| v / 2.0).collect() };
-            cu.push(remap(&self.ru[s], &hx, &hy, Interp::Linear, Border::Replicate));
-            cv.push(remap(&self.rv[s], &hx, &hy, Interp::Linear, Border::Replicate));
+            let hx = Plane {
+                w: hx.w,
+                h: hx.h,
+                data: hx.data.iter().map(|v| v / 2.0).collect(),
+            };
+            let hy = Plane {
+                w: hy.w,
+                h: hy.h,
+                data: hy.data.iter().map(|v| v / 2.0).collect(),
+            };
+            cu.push(remap(
+                &self.ru[s],
+                &hx,
+                &hy,
+                Interp::Linear,
+                Border::Replicate,
+            ));
+            cv.push(remap(
+                &self.rv[s],
+                &hx,
+                &hy,
+                Interp::Linear,
+                Border::Replicate,
+            ));
             let c: Vec<bool> = a_src.data.iter().map(|&a| a < 0.02).collect();
             for i in 0..n {
                 if ay.data[i] > 0.05 {
@@ -283,7 +379,11 @@ impl Ctx<'_> {
                             0.0
                         }
                     } else if self.edge_tv {
-                        lam.max(if self.edge[i] && clean_sum[i] < 0.5 { 16.0 } else { 0.0 })
+                        lam.max(if self.edge[i] && clean_sum[i] < 0.5 {
+                            16.0
+                        } else {
+                            0.0
+                        })
                     } else {
                         lam
                     }
@@ -293,13 +393,29 @@ impl Ctx<'_> {
         let oy = if lam_px.max() > 0.0 {
             tv_refine(&mu, &conf, self.m, &lam_px, 300, 1.0)
         } else {
-            Plane { w, h, data: (0..n).map(|i| if self.m[i] { mu.data[i] } else { self.ry[t].data[i] }).collect() }
+            Plane {
+                w,
+                h,
+                data: (0..n)
+                    .map(|i| {
+                        if self.m[i] {
+                            mu.data[i]
+                        } else {
+                            self.ry[t].data[i]
+                        }
+                    })
+                    .collect(),
+            }
         };
         // chroma: same geometry weights, its OWN veto and robust step
         let (cw, ch) = (self.ac.w, self.ac.h);
         let mc = sub2_mask(self.m, w, h);
         let confc = sub2(&conf);
-        let lam_c = if self.op >= 0 { sub2(&lam_px) } else { Plane::filled(cw, ch, lam) };
+        let lam_c = if self.op >= 0 {
+            sub2(&lam_px)
+        } else {
+            Plane::filled(cw, ch, lam)
+        };
         let wg: Vec<Plane> = wt_after.iter().map(sub2).collect();
         let mut outs = vec![];
         for (cands, rc) in [(&cu, &self.ru[t]), (&cv, &self.rv[t])] {
@@ -308,7 +424,13 @@ impl Ctx<'_> {
                 let a = self.ac.data[i];
                 let tol = 20.0 + 20.0 * a / (1.0 - a);
                 let wc: Vec<f32> = (0..nc)
-                    .map(|c| if c == 0 { wg[0].data[i] } else { wg[c].data[i] * (-((cands[c].data[i] - rc.data[i]) / tol).powi(4)).exp() })
+                    .map(|c| {
+                        if c == 0 {
+                            wg[0].data[i]
+                        } else {
+                            wg[c].data[i] * (-((cands[c].data[i] - rc.data[i]) / tol).powi(4)).exp()
+                        }
+                    })
                     .collect();
                 let mean = |wv: &[f32]| -> f32 {
                     let (mut num, mut den) = (0f32, 0f32);
@@ -332,7 +454,13 @@ impl Ctx<'_> {
             outs.push(if lam_c.max() > 0.0 {
                 tv_refine(&muc, &confc, &mc, &lam_c, 300, 1.0)
             } else {
-                Plane { w: cw, h: ch, data: (0..cw * ch).map(|i| if mc[i] { muc.data[i] } else { rc.data[i] }).collect() }
+                Plane {
+                    w: cw,
+                    h: ch,
+                    data: (0..cw * ch)
+                        .map(|i| if mc[i] { muc.data[i] } else { rc.data[i] })
+                        .collect(),
+                }
             });
         }
         let ov = outs.pop().unwrap();
@@ -344,7 +472,16 @@ impl Ctx<'_> {
 /// Rebuild the region of every frame. `jy/ju/jv`: region crops of the decoded frames (u8 values);
 /// `alpha_y`: [`place_alpha`]; `op`: [`Prepared::op`]; `shots`: [`crate::detect::shot_cuts`].
 #[allow(clippy::too_many_arguments)]
-pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i32, shots: &[(usize, usize)], params: &Params, guide: Option<&Guide>) -> Rebuilt {
+pub fn rebuild(
+    jy: &[Plane],
+    ju: &[Plane],
+    jv: &[Plane],
+    alpha_y: &Plane,
+    op: i32,
+    shots: &[(usize, usize)],
+    params: &Params,
+    guide: Option<&Guide>,
+) -> Rebuilt {
     let (w, h, n) = (alpha_y.w, alpha_y.h, jy.len());
     let mut ay = alpha_y.clone();
     let mut ac = chroma_alpha(&ay);
@@ -352,7 +489,13 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
     let mut ry: Vec<Plane> = jy.iter().map(|j| invert(j, &ay, ly)).collect();
     let mut ru: Vec<Plane> = ju.iter().map(|j| invert(j, &ac, lc)).collect();
     let mut rv: Vec<Plane> = jv.iter().map(|j| invert(j, &ac, lc)).collect();
-    let m = dilate_rect(&ay.data.iter().map(|&a| a > 0.01).collect::<Vec<_>>(), w, h, 5, 5);
+    let m = dilate_rect(
+        &ay.data.iter().map(|&a| a > 0.01).collect::<Vec<_>>(),
+        w,
+        h,
+        5,
+        5,
+    );
     let mflow = dilate_rect(&m, w, h, 5, 5);
     let (mut fx0, mut fy0, mut fx1, mut fy1) = (w, h, 0, 0);
     for i in 0..w * h {
@@ -361,8 +504,16 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
             (fx0, fy0, fx1, fy1) = (fx0.min(x), fy0.min(y), fx1.max(x), fy1.max(y));
         }
     }
-    let fw = (fx0.saturating_sub(6), fy0.saturating_sub(6), (fx1 + 7).min(w), (fy1 + 7).min(h));
-    let mflow_w: Vec<bool> = (fw.1..fw.3).flat_map(|y| (fw.0..fw.2).map(move |x| (x, y))).map(|(x, y)| mflow[y * w + x]).collect();
+    let fw = (
+        fx0.saturating_sub(6),
+        fy0.saturating_sub(6),
+        (fx1 + 7).min(w),
+        (fy1 + 7).min(h),
+    );
+    let mflow_w: Vec<bool> = (fw.1..fw.3)
+        .flat_map(|y| (fw.0..fw.2).map(move |x| (x, y)))
+        .map(|(x, y)| mflow[y * w + x])
+        .collect();
     let hole_y: Vec<bool> = ay.data.iter().map(|&a| a > 0.5).collect();
     let mut guided = false;
     if op >= 0 {
@@ -372,14 +523,39 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
         rv = crate::par_map(n, |t| harmonic_fill(&jv[t], &hole_c, 150));
         if let Some(g) = guide {
             guided = true;
-            let near = dilate_rect(&ay.data.iter().map(|&a| a > 0.01).collect::<Vec<_>>(), w, h, 3, 3);
-            let rg_y: Vec<bool> = dilate_rect(&hole_y, w, h, 7, 7).iter().zip(&near).map(|(&a, &b)| a && !b).collect();
-            let rg_c: Vec<bool> = sub2_mask(&rg_y, w, h).iter().zip(&hole_c).map(|(&a, &b)| a && !b).collect();
+            let near = dilate_rect(
+                &ay.data.iter().map(|&a| a > 0.01).collect::<Vec<_>>(),
+                w,
+                h,
+                3,
+                3,
+            );
+            let rg_y: Vec<bool> = dilate_rect(&hole_y, w, h, 7, 7)
+                .iter()
+                .zip(&near)
+                .map(|(&a, &b)| a && !b)
+                .collect();
+            let rg_c: Vec<bool> = sub2_mask(&rg_y, w, h)
+                .iter()
+                .zip(&hole_c)
+                .map(|(&a, &b)| a && !b)
+                .collect();
             for t in 0..n {
                 let k = t.min(g.y.len() - 1);
-                for (r, j, gp, hole, rg) in [(&mut ry[t], &jy[t], &g.y[k], &hole_y, &rg_y), (&mut ru[t], &ju[t], &g.u[k], &hole_c, &rg_c), (&mut rv[t], &jv[t], &g.v[k], &hole_c, &rg_c)] {
-                    let mut diffs: Vec<f32> = (0..j.data.len()).filter(|&i| rg[i]).map(|i| j.data[i] - gp.data[i]).collect();
-                    let off = if diffs.is_empty() { 0.0 } else { median(&mut diffs) };
+                for (r, j, gp, hole, rg) in [
+                    (&mut ry[t], &jy[t], &g.y[k], &hole_y, &rg_y),
+                    (&mut ru[t], &ju[t], &g.u[k], &hole_c, &rg_c),
+                    (&mut rv[t], &jv[t], &g.v[k], &hole_c, &rg_c),
+                ] {
+                    let mut diffs: Vec<f32> = (0..j.data.len())
+                        .filter(|&i| rg[i])
+                        .map(|i| j.data[i] - gp.data[i])
+                        .collect();
+                    let off = if diffs.is_empty() {
+                        0.0
+                    } else {
+                        median(&mut diffs)
+                    };
                     for i in 0..j.data.len() {
                         if hole[i] {
                             r.data[i] = gp.data[i] + off;
@@ -388,30 +564,84 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
                 }
             }
             // guide-filled strokes count as a half-weight clean observation
-            ay = Plane { w, h, data: hole_y.iter().map(|&b| if b { 0.29 } else { 0.0 }).collect() };
-            ac = Plane { w: ac.w, h: ac.h, data: hole_c.iter().map(|&b| if b { 0.29 } else { 0.0 }).collect() };
+            ay = Plane {
+                w,
+                h,
+                data: hole_y.iter().map(|&b| if b { 0.29 } else { 0.0 }).collect(),
+            };
+            ac = Plane {
+                w: ac.w,
+                h: ac.h,
+                data: hole_c.iter().map(|&b| if b { 0.29 } else { 0.0 }).collect(),
+            };
         }
     }
-    let r8: Vec<Plane> = ry.iter().map(|r| Plane { w, h, data: r.data.iter().map(|v| v.clamp(0.0, 255.0).floor()).collect() }).collect();
+    let r8: Vec<Plane> = ry
+        .iter()
+        .map(|r| Plane {
+            w,
+            h,
+            data: r.data.iter().map(|v| v.clamp(0.0, 255.0).floor()).collect(),
+        })
+        .collect();
     let (gx, gy) = sobel3(&ay);
-    let ga: Vec<f32> = gx.data.iter().zip(&gy.data).map(|(a, b)| a.hypot(*b)).collect();
+    let ga: Vec<f32> = gx
+        .data
+        .iter()
+        .zip(&gy.data)
+        .map(|(a, b)| a.hypot(*b))
+        .collect();
     let gmax = ga.iter().copied().fold(0.0, f32::max);
-    let edge = dilate_rect(&ga.iter().map(|&g| g > 0.25 * gmax).collect::<Vec<_>>(), w, h, 3, 3);
-    let ring: Vec<bool> = dilate_rect(&mflow, w, h, 9, 9).iter().zip(&mflow).map(|(&a, &b)| a && !b).collect();
-    let ctx = Ctx { w, h, ry: &ry, ru: &ru, rv: &rv, r8: &r8, ay: &ay, ac: &ac, m: &m, mflow_w: &mflow_w, fw, edge: &edge, hole_y: &hole_y, op, guided, edge_tv: params.edge_tv };
+    let edge = dilate_rect(
+        &ga.iter().map(|&g| g > 0.25 * gmax).collect::<Vec<_>>(),
+        w,
+        h,
+        3,
+        3,
+    );
+    let ring: Vec<bool> = dilate_rect(&mflow, w, h, 9, 9)
+        .iter()
+        .zip(&mflow)
+        .map(|(&a, &b)| a && !b)
+        .collect();
+    let ctx = Ctx {
+        w,
+        h,
+        ry: &ry,
+        ru: &ru,
+        rv: &rv,
+        r8: &r8,
+        ay: &ay,
+        ac: &ac,
+        m: &m,
+        mflow_w: &mflow_w,
+        fw,
+        edge: &edge,
+        hole_y: &hole_y,
+        op,
+        guided,
+        edge_tv: params.edge_tv,
+    };
 
     let (mut oy, mut ou, mut ov) = (ry.clone(), ru.clone(), rv.clone());
     let mut logs = vec![];
     for &(s0, s1) in shots {
         let len = s1 - s0;
         let step = (len / 6).max(1);
-        let probes: Vec<(usize, usize)> = (s0..s1.saturating_sub(2)).step_by(step).take(6).map(|t| (t, (t + 2).min(s1 - 1))).collect();
+        let probes: Vec<(usize, usize)> = (s0..s1.saturating_sub(2))
+            .step_by(step)
+            .take(6)
+            .map(|t| (t, (t + 2).min(s1 - 1)))
+            .collect();
         let motion = if probes.is_empty() {
             0.0
         } else {
             let mut per: Vec<f32> = crate::par_map(probes.len(), |i| {
                 let f = ctx.flow(probes[i].0, probes[i].1);
-                let mut mags: Vec<f32> = (0..w * h).filter(|&k| ring[k]).map(|k| f.u.data[k].hypot(f.v.data[k])).collect();
+                let mut mags: Vec<f32> = (0..w * h)
+                    .filter(|&k| ring[k])
+                    .map(|k| f.u.data[k].hypot(f.v.data[k]))
+                    .collect();
                 median(&mut mags)
             });
             median(&mut per)
@@ -420,10 +650,18 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
             (params.k, (-(params.k as i64)..=params.k as i64).collect())
         } else {
             let k = (3 * params.k).min(len);
-            let offs = if op >= 0 && guided { vec![0] } else { (-(k as i64)..=k as i64).collect() };
+            let offs = if op >= 0 && guided {
+                vec![0]
+            } else {
+                (-(k as i64)..=k as i64).collect()
+            };
             (k, offs)
         };
-        let lam = if params.lam >= 0.0 { params.lam } else { 16.0 * ((1.2 - motion) / 0.6).clamp(0.0, 1.0) };
+        let lam = if params.lam >= 0.0 {
+            params.lam
+        } else {
+            16.0 * ((1.2 - motion) / 0.6).clamp(0.0, 1.0)
+        };
         let (mut clean_w, mut tot_w) = (0f64, 0f64);
         let mut cache: HashMap<(usize, usize), Flow> = HashMap::new();
         const CHUNK: usize = 32;
@@ -445,7 +683,8 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
             }
             let fresh = crate::par_map(need.len(), |i| ctx.flow(need[i].0, need[i].1));
             cache.extend(need.into_iter().zip(fresh));
-            let frames = crate::par_map(c1 - c0, |i| ctx.fuse(c0 + i, &offs, s0, s1, k, lam, &cache));
+            let frames =
+                crate::par_map(c1 - c0, |i| ctx.fuse(c0 + i, &offs, s0, s1, k, lam, &cache));
             for (i, (fy, fu, fv, cw, tw)) in frames.into_iter().enumerate() {
                 oy[c0 + i] = fy;
                 ou[c0 + i] = fu;
@@ -457,11 +696,33 @@ pub fn rebuild(jy: &[Plane], ju: &[Plane], jv: &[Plane], alpha_y: &Plane, op: i3
             cache.retain(|&(a, b), _| a.min(b) >= keep_from);
             c0 = c1;
         }
-        logs.push(ShotLog { s0, s1, motion, k, lam, clean_share: (clean_w / tot_w.max(1e-6)) as f32 });
+        logs.push(ShotLog {
+            s0,
+            s1,
+            motion,
+            k,
+            lam,
+            clean_share: (clean_w / tot_w.max(1e-6)) as f32,
+        });
     }
-    let mf = Plane { w, h, data: m.iter().map(|&b| if b { 1.0 } else { 0.0 }).collect() };
+    let mf = Plane {
+        w,
+        h,
+        data: m.iter().map(|&b| if b { 1.0 } else { 0.0 }).collect(),
+    };
     let fy = gaussian_blur(&mf, 1.0);
-    let feather_y = Plane { w, h, data: fy.data.iter().map(|v| (v * 1.5).clamp(0.0, 1.0)).collect() };
+    let feather_y = Plane {
+        w,
+        h,
+        data: fy.data.iter().map(|v| (v * 1.5).clamp(0.0, 1.0)).collect(),
+    };
     let feather_c = sub2(&feather_y);
-    Rebuilt { y: oy, u: ou, v: ov, feather_y, feather_c, shot_logs: logs }
+    Rebuilt {
+        y: oy,
+        u: ou,
+        v: ov,
+        feather_y,
+        feather_c,
+        shot_logs: logs,
+    }
 }

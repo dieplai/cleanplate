@@ -42,13 +42,26 @@ struct Args {
 fn main() -> Result<()> {
     let a = Args::parse();
     if let Some(t) = a.threads {
-        rayon::ThreadPoolBuilder::new().num_threads(t).build_global()?;
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(t)
+            .build_global()?;
     }
     if cleanplate_cli::still_io::is_still(&a.input) {
         std::process::exit(cleanplate_cli::still_io::run(&a.input, &a.output, a.lam)?);
     }
-    let params = Params { k: a.k, lam: a.lam, edge_tv: !a.no_edge_tv, ..Params::default() };
-    let o = VideoOpts { codec: a.codec, params, min_ncc: a.min_ncc, opaque: a.opaque, guide: a.guide };
+    let params = Params {
+        k: a.k,
+        lam: a.lam,
+        edge_tv: !a.no_edge_tv,
+        ..Params::default()
+    };
+    let o = VideoOpts {
+        codec: a.codec,
+        params,
+        min_ncc: a.min_ncc,
+        opaque: a.opaque,
+        guide: a.guide,
+    };
     let code = run(&a.input, &a.output, &o)?;
     std::process::exit(code);
 }

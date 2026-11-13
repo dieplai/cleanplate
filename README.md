@@ -71,7 +71,7 @@ the method behind each number: <a href="./docs/benchmark.md">docs/benchmark.md</
 
 ```bash
 git clone https://github.com/dieplai/cleanplate.git && cd cleanplate
-cargo install --path crates/cleanplate-cli        # Rust ≥ 1.82; video also needs ffmpeg on PATH
+cargo install --path crates/cleanplate-cli        # Rust ≥ 1.88; video also needs ffmpeg on PATH
 
 cleanplate photo.png photo_clean.png
 cleanplate clip.mp4 clip_clean.mov                # .mov = ProRes 422 HQ; or --codec av1 / h264 / ffv1

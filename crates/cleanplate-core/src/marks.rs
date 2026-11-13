@@ -16,16 +16,30 @@ pub struct Mark {
 
 macro_rules! mark {
     ($file:literal, $known:expr, $opaque:expr) => {
-        ($file, include_bytes!(concat!("../../../assets/marks/google/", $file)) as &[u8], $known, $opaque)
+        (
+            $file,
+            include_bytes!(concat!("../../../assets/marks/google/", $file)) as &[u8],
+            $known,
+            $opaque,
+        )
     };
 }
 
-type Entry = (&'static str, &'static [u8], &'static [(u32, u32)], Option<u32>);
+type Entry = (
+    &'static str,
+    &'static [u8],
+    &'static [(u32, u32)],
+    Option<u32>,
+);
 const FILES: [Entry; 9] = [
     mark!("gemini-diamond-36.png", &[(32, 32)], None),
     mark!("gemini-diamond-48.png", &[(72, 72), (96, 96)], None),
     mark!("gemini-diamond-96.png", &[(64, 64), (192, 192)], None),
-    mark!("gemini-diamond-v1-48.png", &[(32, 32), (72, 72), (96, 96)], None),
+    mark!(
+        "gemini-diamond-v1-48.png",
+        &[(32, 32), (72, 72), (96, 96)],
+        None
+    ),
     mark!("gemini-diamond-v1-96.png", &[(64, 64), (192, 192)], None),
     mark!("veo-legacy-68.png", &[(17, 18)], None),
     mark!("veo-legacy-99.png", &[], None),
@@ -43,7 +57,11 @@ pub fn decode_gray_png(bytes: &[u8]) -> Plane {
     let ch = info.color_type.samples();
     let (w, h) = (info.width as usize, info.height as usize);
     // grayscale templates: take the first channel (all shipped templates are 1-channel)
-    Plane { w, h, data: (0..w * h).map(|i| buf[i * ch] as f32 / 255.0).collect() }
+    Plane {
+        w,
+        h,
+        data: (0..w * h).map(|i| buf[i * ch] as f32 / 255.0).collect(),
+    }
 }
 
 /// Crop to the bounding box of `alpha > 0` (`ys, xs = np.where(A0 > 0)` in Python).
@@ -64,11 +82,19 @@ pub fn catalog() -> &'static [Mark] {
     C.get_or_init(|| {
         FILES
             .iter()
-            .map(|&(name, bytes, known, opaque)| Mark { name, alpha: trim(&decode_gray_png(bytes)), known, opaque })
+            .map(|&(name, bytes, known, opaque)| Mark {
+                name,
+                alpha: trim(&decode_gray_png(bytes)),
+                known,
+                opaque,
+            })
             .collect()
     })
 }
 
 pub fn by_name(name: &str) -> &'static Mark {
-    catalog().iter().find(|m| m.name == name).expect("known mark")
+    catalog()
+        .iter()
+        .find(|m| m.name == name)
+        .expect("known mark")
 }

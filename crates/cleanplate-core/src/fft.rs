@@ -5,16 +5,17 @@ use std::sync::Arc;
 
 /// Smallest 2^a·3^b·5^c ≥ n (sizes rustfft handles fastest).
 pub fn nice_size(n: usize) -> usize {
-    (n..).find(|&v| {
-        let mut x = v;
-        for p in [2, 3, 5] {
-            while x % p == 0 {
-                x /= p;
+    (n..)
+        .find(|&v| {
+            let mut x = v;
+            for p in [2, 3, 5] {
+                while x % p == 0 {
+                    x /= p;
+                }
             }
-        }
-        x == 1
-    })
-    .unwrap()
+            x == 1
+        })
+        .unwrap()
 }
 
 /// Forward and inverse plans for an n×m (width n, height m) transform.
@@ -30,14 +31,25 @@ pub struct Fft2 {
 impl Fft2 {
     pub fn new(n: usize, m: usize) -> Self {
         let mut p = FftPlanner::new();
-        Fft2 { n, m, row_f: p.plan_fft_forward(n), row_i: p.plan_fft_inverse(n), col_f: p.plan_fft_forward(m), col_i: p.plan_fft_inverse(m) }
+        Fft2 {
+            n,
+            m,
+            row_f: p.plan_fft_forward(n),
+            row_i: p.plan_fft_inverse(n),
+            col_f: p.plan_fft_forward(m),
+            col_i: p.plan_fft_inverse(m),
+        }
     }
 
     /// In-place 2-D FFT; rows with index ≥ `rows_used` are known to be zero (skipped). The inverse is unscaled
     /// (rustfft convention); callers divide by n·m.
     pub fn run(&self, a: &mut [C], inverse: bool, rows_used: usize) {
         let (n, m) = (self.n, self.m);
-        let (row, col) = if inverse { (&self.row_i, &self.col_i) } else { (&self.row_f, &self.col_f) };
+        let (row, col) = if inverse {
+            (&self.row_i, &self.col_i)
+        } else {
+            (&self.row_f, &self.col_f)
+        };
         row.process(&mut a[..rows_used.min(m) * n]);
         let mut t = vec![C::default(); n * m];
         for r in 0..m {

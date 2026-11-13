@@ -17,16 +17,30 @@ pub struct Probe {
 
 pub fn probe(path: &Path) -> Result<Probe> {
     let o = Command::new("ffprobe")
-        .args(["-v", "error", "-show_streams", "-show_format", "-of", "json"])
+        .args([
+            "-v",
+            "error",
+            "-show_streams",
+            "-show_format",
+            "-of",
+            "json",
+        ])
         .arg(path)
         .output()
         .context("running ffprobe (is ffmpeg installed?)")?;
     if !o.status.success() {
-        bail!("ffprobe failed on {}: {}", path.display(), String::from_utf8_lossy(&o.stderr));
+        bail!(
+            "ffprobe failed on {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&o.stderr)
+        );
     }
     let j: serde_json::Value = serde_json::from_slice(&o.stdout)?;
     let streams = j["streams"].as_array().context("no streams")?;
-    let v = streams.iter().find(|s| s["codec_type"] == "video").context("no video stream")?;
+    let v = streams
+        .iter()
+        .find(|s| s["codec_type"] == "video")
+        .context("no video stream")?;
     let s = |k: &str| v[k].as_str().map(str::to_string);
     let num = |x: &serde_json::Value| x.as_str().and_then(|s| s.parse::<u64>().ok());
     Ok(Probe {
@@ -34,8 +48,15 @@ pub fn probe(path: &Path) -> Result<Probe> {
         h: v["height"].as_u64().context("height")? as usize,
         fps: s("r_frame_rate").unwrap_or_else(|| "24/1".into()),
         has_audio: streams.iter().any(|s| s["codec_type"] == "audio"),
-        color: [s("color_range"), s("color_space"), s("color_primaries"), s("color_transfer")],
-        bitrate: num(&v["bit_rate"]).or_else(|| num(&j["format"]["bit_rate"])).unwrap_or(8_000_000),
+        color: [
+            s("color_range"),
+            s("color_space"),
+            s("color_primaries"),
+            s("color_transfer"),
+        ],
+        bitrate: num(&v["bit_rate"])
+            .or_else(|| num(&j["format"]["bit_rate"]))
+            .unwrap_or(8_000_000),
     })
 }
 
@@ -54,7 +75,10 @@ impl Decoder {
             .stdout(Stdio::piped())
             .spawn()
             .context("running ffmpeg")?;
-        Ok(Decoder { child, frame: w * h * 3 / 2 })
+        Ok(Decoder {
+            child,
+            frame: w * h * 3 / 2,
+        })
     }
 }
 
@@ -88,9 +112,31 @@ pub fn has_encoder(name: &str) -> bool {
 pub fn encoder_args(codec: &str, inp: &Path, out: &Path, p: &Probe) -> Vec<String> {
     let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     let mut venc = match codec {
-        "prores" => s(&["-c:v", "prores_ks", "-profile:v", "3", "-pix_fmt", "yuv422p10le", "-vendor", "apl0"]),
-        "av1" => s(&["-c:v", "libsvtav1", "-crf", "14", "-preset", "5", "-svtav1-params", "tune=0", "-pix_fmt", "yuv420p10le"]),
-        "h264x" => s(&["-c:v", "libx264", "-crf", "12", "-preset", "slow", "-pix_fmt", "yuv420p"]),
+        "prores" => s(&[
+            "-c:v",
+            "prores_ks",
+            "-profile:v",
+            "3",
+            "-pix_fmt",
+            "yuv422p10le",
+            "-vendor",
+            "apl0",
+        ]),
+        "av1" => s(&[
+            "-c:v",
+            "libsvtav1",
+            "-crf",
+            "14",
+            "-preset",
+            "5",
+            "-svtav1-params",
+            "tune=0",
+            "-pix_fmt",
+            "yuv420p10le",
+        ]),
+        "h264x" => s(&[
+            "-c:v", "libx264", "-crf", "12", "-preset", "slow", "-pix_fmt", "yuv420p",
+        ]),
         "h264" => {
             let br = (3 * p.bitrate).max(12_000_000).to_string();
             s(&["-c:v", "libopenh264", "-b:v", &br, "-pix_fmt", "yuv420p"])
@@ -102,7 +148,12 @@ pub fn encoder_args(codec: &str, inp: &Path, out: &Path, p: &Probe) -> Vec<Strin
         venc = s(&["-vf", &crop, "-c:v", "ffv1", "-pix_fmt", "yuv420p"]);
     }
     let mut tags = vec![];
-    for (val, opt) in p.color.iter().zip(["-color_range", "-colorspace", "-color_primaries", "-color_trc"]) {
+    for (val, opt) in p.color.iter().zip([
+        "-color_range",
+        "-colorspace",
+        "-color_primaries",
+        "-color_trc",
+    ]) {
         if let Some(v) = val {
             if v != "unknown" {
                 tags.push(opt.to_string());
@@ -110,7 +161,9 @@ pub fn encoder_args(codec: &str, inp: &Path, out: &Path, p: &Probe) -> Vec<Strin
             }
         }
     }
-    let mut a = s(&["-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s"]);
+    let mut a = s(&[
+        "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s",
+    ]);
     a.push(format!("{}x{}", p.w, p.h));
     a.push("-r".into());
     a.push(p.fps.clone());

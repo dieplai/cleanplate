@@ -10,7 +10,9 @@ fn corners(tag: &str) -> Vec<Plane> {
     let f = load(&format!("corners_{tag}"));
     let s: Vec<usize> = f.shape().iter().map(|&v| v as usize).collect();
     let px = f.into_vec::<u8>().unwrap();
-    px.chunks(s[1] * s[2]).map(|c| Plane::from_u8(s[2], s[1], c)).collect()
+    px.chunks(s[1] * s[2])
+        .map(|c| Plane::from_u8(s[2], s[1], c))
+        .collect()
 }
 fn want(tag: &str) -> Vec<f32> {
     load(&format!("det_{tag}")).into_vec::<f32>().unwrap() // x, y, ncc, scale, ok, known
@@ -23,7 +25,12 @@ fn check_found(tag: &str, name: &str) {
     let d = detect_video(&refs, 1280, 720, 0.5).expect("mark must be found");
     assert_eq!(d.mark.name, name);
     assert_eq!((d.x, d.y), (w[0] as usize, w[1] as usize));
-    assert!((d.ncc - w[2]).abs() <= 0.01, "ncc {} vs python {}", d.ncc, w[2]);
+    assert!(
+        (d.ncc - w[2]).abs() <= 0.01,
+        "ncc {} vs python {}",
+        d.ncc,
+        w[2]
+    );
     assert!(d.at_known);
 }
 
@@ -48,6 +55,8 @@ fn detect_refuses_clean() {
 
 #[test]
 fn shot_cuts_on_concatenation() {
-    let thumbs: Vec<Plane> = (0..40).map(|i| Plane::filled(64, 36, if i < 20 { 40.0 } else { 160.0 })).collect();
+    let thumbs: Vec<Plane> = (0..40)
+        .map(|i| Plane::filled(64, 36, if i < 20 { 40.0 } else { 160.0 }))
+        .collect();
     assert_eq!(shot_cuts(&thumbs), vec![(0, 20), (20, 40)]);
 }

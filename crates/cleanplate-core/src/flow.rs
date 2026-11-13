@@ -28,7 +28,11 @@ const EPS_DET: f32 = 0.001;
 const NUM_STRIPES: usize = 12;
 
 fn round_u8(p: &Plane) -> Plane {
-    Plane { w: p.w, h: p.h, data: p.data.iter().map(|v| v.round().clamp(0.0, 255.0)).collect() }
+    Plane {
+        w: p.w,
+        h: p.h,
+        data: p.data.iter().map(|v| v.round().clamp(0.0, 255.0)).collect(),
+    }
 }
 
 /// I1 with a `BSZ` replicated border.
@@ -47,19 +51,38 @@ fn extend(p: &Plane) -> Plane {
 
 /// Bilinear sample position of patch/pixel (i, j) displaced by (ux, uy) inside I1_ext, clamped like OpenCV.
 #[inline]
-fn sample_pos(i: usize, j: usize, ux: f32, uy: f32, w: usize, h: usize) -> (usize, usize, [f32; 4]) {
+fn sample_pos(
+    i: usize,
+    j: usize,
+    ux: f32,
+    uy: f32,
+    w: usize,
+    h: usize,
+) -> (usize, usize, [f32; 4]) {
     let (lo_i, hi_i) = ((BSZ - PSZ + 1) as f32, (BSZ + h - 1) as f32);
     let (lo_j, hi_j) = ((BSZ - PSZ + 1) as f32, (BSZ + w - 1) as f32);
     let ii = (i as f32 + uy + BSZ as f32).clamp(lo_i, hi_i);
     let jj = (j as f32 + ux + BSZ as f32).clamp(lo_j, hi_j);
     let (di, dj) = (ii - ii.floor(), jj - jj.floor());
-    (ii as usize, jj as usize, [(1.0 - di) * (1.0 - dj), (1.0 - di) * dj, di * (1.0 - dj), di * dj])
+    (
+        ii as usize,
+        jj as usize,
+        [
+            (1.0 - di) * (1.0 - dj),
+            (1.0 - di) * dj,
+            di * (1.0 - dj),
+            di * dj,
+        ],
+    )
 }
 
 #[inline]
 fn bilinear(e: &Plane, r: usize, c: usize, wt: &[f32; 4]) -> f32 {
     let i = r * e.w + c;
-    wt[0] * e.data[i] + wt[1] * e.data[i + 1] + wt[2] * e.data[i + e.w] + wt[3] * e.data[i + e.w + 1]
+    wt[0] * e.data[i]
+        + wt[1] * e.data[i + 1]
+        + wt[2] * e.data[i + e.w]
+        + wt[3] * e.data[i + e.w + 1]
 }
 
 struct Scale {
@@ -107,7 +130,11 @@ fn patch_stats(s: &Scale, i: usize, j: usize) -> PatchStats {
     if det.abs() < EPS_DET {
         det = EPS_DET;
     }
-    PatchStats { inv: [yy / det, -xy / det, xx / det], gx, gy }
+    PatchStats {
+        inv: [yy / det, -xy / det, xx / det],
+        gx,
+        gy,
+    }
 }
 
 /// Sparse patch flows (hs × ws) by inverse search, initialised from the dense flow (u, v) of this scale.
@@ -115,7 +142,9 @@ fn inverse_search(s: &Scale, u: &Plane, v: &Plane) -> (Vec<f32>, Vec<f32>, usize
     let (w, h) = (s.i0.w, s.i0.h);
     let (ws, hs) = (1 + (w - PSZ) / STRIDE, 1 + (h - PSZ) / STRIDE);
     let half = PSZ / 2;
-    let stats: Vec<PatchStats> = (0..hs * ws).map(|k| patch_stats(s, (k / ws) * STRIDE, (k % ws) * STRIDE)).collect();
+    let stats: Vec<PatchStats> = (0..hs * ws)
+        .map(|k| patch_stats(s, (k / ws) * STRIDE, (k % ws) * STRIDE))
+        .collect();
     let (mut sx, mut sy) = (vec![0f32; hs * ws], vec![0f32; hs * ws]);
     for k in 0..hs * ws {
         let (i, j) = ((k / ws) * STRIDE, (k % ws) * STRIDE);
@@ -129,7 +158,11 @@ fn inverse_search(s: &Scale, u: &Plane, v: &Plane) -> (Vec<f32>, Vec<f32>, usize
         let s1 = (s0 + stripe).min(hs);
         for pass in 0..2 {
             let dir: isize = if pass == 0 { 1 } else { -1 };
-            let order: Vec<usize> = if dir == 1 { (s0 * ws..s1 * ws).collect() } else { (s0 * ws..s1 * ws).rev().collect() };
+            let order: Vec<usize> = if dir == 1 {
+                (s0 * ws..s1 * ws).collect()
+            } else {
+                (s0 * ws..s1 * ws).rev().collect()
+            };
             for k in order {
                 let (is, js) = (k / ws, k % ws);
                 let (i, j) = (is * STRIDE, js * STRIDE);
@@ -194,7 +227,8 @@ fn densify(s: &Scale, sx: &[f32], sy: &[f32], ws: usize, hs: usize) -> (Plane, P
     let (mut u, mut v) = (Plane::new(w, h), Plane::new(w, h));
     let range = |p: usize, n: usize| -> (usize, usize) {
         let end = (p / STRIDE).min(n - 1);
-        let start = ((p as isize - PSZ as isize + STRIDE as isize) / STRIDE as isize).max(0) as usize;
+        let start =
+            ((p as isize - PSZ as isize + STRIDE as isize) / STRIDE as isize).max(0) as usize;
         (start.min(end), end)
     };
     for i in 0..h {
@@ -229,8 +263,16 @@ fn deriv(p: &Plane, axis: usize) -> Plane {
             let mut s = 0.0;
             for (t, kk) in k.iter().enumerate() {
                 let o = t as isize - 2;
-                let (xx, yy) = if axis == 0 { (x as isize + o, y as isize) } else { (x as isize, y as isize + o) };
-                s += kk * p.at(xx.clamp(0, p.w as isize - 1) as usize, yy.clamp(0, p.h as isize - 1) as usize);
+                let (xx, yy) = if axis == 0 {
+                    (x as isize + o, y as isize)
+                } else {
+                    (x as isize, y as isize + o)
+                };
+                s += kk
+                    * p.at(
+                        xx.clamp(0, p.w as isize - 1) as usize,
+                        yy.clamp(0, p.h as isize - 1) as usize,
+                    );
             }
             out.data[y * p.w + x] = s;
         }
@@ -246,25 +288,63 @@ fn variational_refine(i0: &Plane, i1: &Plane, u: &mut Plane, v: &mut Plane) {
     let (w, h) = (i0.w, i0.h);
     const ZETA2: f32 = 0.1 * 0.1;
     const EPS2: f32 = 0.001 * 0.001;
-    let mx = Plane { w, h, data: (0..w * h).map(|k| (k % w) as f32 + u.data[k]).collect() };
-    let my = Plane { w, h, data: (0..w * h).map(|k| (k / w) as f32 + v.data[k]).collect() };
+    let mx = Plane {
+        w,
+        h,
+        data: (0..w * h).map(|k| (k % w) as f32 + u.data[k]).collect(),
+    };
+    let my = Plane {
+        w,
+        h,
+        data: (0..w * h).map(|k| (k / w) as f32 + v.data[k]).collect(),
+    };
     let iw = remap(i1, &mx, &my, Interp::Linear, Border::Replicate);
-    let avg = Plane { w, h, data: i0.data.iter().zip(&iw.data).map(|(a, b)| 0.5 * (a + b)).collect() };
-    let iz = Plane { w, h, data: iw.data.iter().zip(&i0.data).map(|(a, b)| a - b).collect() };
+    let avg = Plane {
+        w,
+        h,
+        data: i0
+            .data
+            .iter()
+            .zip(&iw.data)
+            .map(|(a, b)| 0.5 * (a + b))
+            .collect(),
+    };
+    let iz = Plane {
+        w,
+        h,
+        data: iw.data.iter().zip(&i0.data).map(|(a, b)| a - b).collect(),
+    };
     let (ix, iy) = (deriv(&avg, 0), deriv(&avg, 1));
     let (ixx, ixy, iyy) = (deriv(&ix, 0), deriv(&ix, 1), deriv(&iy, 1));
     let (ixz, iyz) = (deriv(&iz, 0), deriv(&iz, 1));
     let (mut du, mut dv) = (vec![0f32; w * h], vec![0f32; w * h]);
     let nb = |k: usize| -> [Option<usize>; 4] {
         let (x, y) = (k % w, k / w);
-        [(x > 0).then(|| k - 1), (x + 1 < w).then(|| k + 1), (y > 0).then(|| k - w), (y + 1 < h).then(|| k + w)]
+        [
+            (x > 0).then(|| k - 1),
+            (x + 1 < w).then(|| k + 1),
+            (y > 0).then(|| k - w),
+            (y + 1 < h).then(|| k + w),
+        ]
     };
     for _ in 0..VR_FIXED_POINT {
         // robust data weights and linear system coefficients at the current increments
-        let (mut a11, mut a12, mut a22, mut b1, mut b2) = (vec![0f32; w * h], vec![0f32; w * h], vec![0f32; w * h], vec![0f32; w * h], vec![0f32; w * h]);
+        let (mut a11, mut a12, mut a22, mut b1, mut b2) = (
+            vec![0f32; w * h],
+            vec![0f32; w * h],
+            vec![0f32; w * h],
+            vec![0f32; w * h],
+            vec![0f32; w * h],
+        );
         for k in 0..w * h {
             let (x, y, z) = (ix.data[k], iy.data[k], iz.data[k]);
-            let (xx, xy, yy, xz, yz) = (ixx.data[k], ixy.data[k], iyy.data[k], ixz.data[k], iyz.data[k]);
+            let (xx, xy, yy, xz, yz) = (
+                ixx.data[k],
+                ixy.data[k],
+                iyy.data[k],
+                ixz.data[k],
+                iyz.data[k],
+            );
             let zl = z + x * du[k] + y * dv[k];
             let (gxl, gyl) = (xz + xx * du[k] + xy * dv[k], yz + xy * du[k] + yy * dv[k]);
 
@@ -280,7 +360,7 @@ fn variational_refine(i0: &Plane, i1: &Plane, u: &mut Plane, v: &mut Plane) {
             a22[k] = pd * y * y + pgx * xy * xy + pgy * yy * yy;
             b1[k] = -pd * x * z - pgx * xx * xz - pgy * xy * yz;
             b2[k] = -pd * y * z - pgx * xy * xz - pgy * yy * yz;
-                    }
+        }
         // smoothness weights on the full flow (u + du, v + dv)
         let fu: Vec<f32> = (0..w * h).map(|k| u.data[k] + du[k]).collect();
         let fv: Vec<f32> = (0..w * h).map(|k| v.data[k] + dv[k]).collect();
@@ -292,8 +372,14 @@ fn variational_refine(i0: &Plane, i1: &Plane, u: &mut Plane, v: &mut Plane) {
                     let yy = (y as isize + dy).clamp(0, h as isize - 1) as usize;
                     f[yy * w + xx]
                 };
-                let (ux, uy) = ((c(&fu, 1, 0) - c(&fu, -1, 0)) * 0.5, (c(&fu, 0, 1) - c(&fu, 0, -1)) * 0.5);
-                let (vx, vy) = ((c(&fv, 1, 0) - c(&fv, -1, 0)) * 0.5, (c(&fv, 0, 1) - c(&fv, 0, -1)) * 0.5);
+                let (ux, uy) = (
+                    (c(&fu, 1, 0) - c(&fu, -1, 0)) * 0.5,
+                    (c(&fu, 0, 1) - c(&fu, 0, -1)) * 0.5,
+                );
+                let (vx, vy) = (
+                    (c(&fv, 1, 0) - c(&fv, -1, 0)) * 0.5,
+                    (c(&fv, 0, 1) - c(&fv, 0, -1)) * 0.5,
+                );
                 VR_ALPHA / (2.0 * (ux * ux + uy * uy + vx * vx + vy * vy + EPS2).sqrt())
             })
             .collect();
@@ -327,18 +413,37 @@ fn variational_refine(i0: &Plane, i1: &Plane, u: &mut Plane, v: &mut Plane) {
 /// Dense flow from `i0` to `i1` (u8-valued planes of equal size): I1(x + flow(x)) ≈ I0(x).
 pub fn dis_flow(i0: &Plane, i1: &Plane) -> Flow {
     let (w0, h0) = (i0.w, i0.h);
-    let coarsest = ((2.0 * w0 as f64) / (5.0 * PSZ as f64)).log2().floor().max(0.0) as usize;
+    let coarsest = ((2.0 * w0 as f64) / (5.0 * PSZ as f64))
+        .log2()
+        .floor()
+        .max(0.0) as usize;
     let finest = FINEST.min(coarsest);
     let scales: Vec<Scale> = (0..=coarsest)
         .map(|k| {
             let (w, h) = (w0 >> k, h0 >> k);
-            let (a, b) = if k == 0 { (i0.clone(), i1.clone()) } else { (round_u8(&resize_area(i0, w, h)), round_u8(&resize_area(i1, w, h))) };
+            let (a, b) = if k == 0 {
+                (i0.clone(), i1.clone())
+            } else {
+                (
+                    round_u8(&resize_area(i0, w, h)),
+                    round_u8(&resize_area(i1, w, h)),
+                )
+            };
             let (ix, iy) = sobel3(&a);
             let i1e = extend(&b);
-            Scale { i0: a, i1: b, i1e, ix, iy }
+            Scale {
+                i0: a,
+                i1: b,
+                i1e,
+                ix,
+                iy,
+            }
         })
         .collect();
-    let (mut u, mut v) = (Plane::new(scales[coarsest].i0.w, scales[coarsest].i0.h), Plane::new(scales[coarsest].i0.w, scales[coarsest].i0.h));
+    let (mut u, mut v) = (
+        Plane::new(scales[coarsest].i0.w, scales[coarsest].i0.h),
+        Plane::new(scales[coarsest].i0.w, scales[coarsest].i0.h),
+    );
     for k in (finest..=coarsest).rev() {
         let s = &scales[k];
         if k != coarsest {

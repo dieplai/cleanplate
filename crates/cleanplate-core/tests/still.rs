@@ -10,19 +10,35 @@ const S: usize = 1024;
 fn texture() -> [Plane; 3] {
     let mut seed = 7u64;
     let mut rnd = || {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (seed >> 40) as f32 / (1u64 << 24) as f32 * 255.0
     };
     [0, 1, 2].map(|_| {
-        let p = Plane { w: S, h: S, data: (0..S * S).map(|_| rnd()).collect() };
+        let p = Plane {
+            w: S,
+            h: S,
+            data: (0..S * S).map(|_| rnd()).collect(),
+        };
         let b = gaussian_blur(&p, 2.0);
         let m = b.data.iter().sum::<f32>() / b.data.len() as f32;
-        Plane { w: S, h: S, data: b.data.iter().map(|v| ((v - m) * 3.0 + 120.0).clamp(0.0, 255.0).round()).collect() }
+        Plane {
+            w: S,
+            h: S,
+            data: b
+                .data
+                .iter()
+                .map(|v| ((v - m) * 3.0 + 120.0).clamp(0.0, 255.0).round())
+                .collect(),
+        }
     })
 }
 
 fn interleave(ch: &[Plane; 3]) -> Vec<u8> {
-    (0..S * S).flat_map(|i| ch.iter().map(move |c| c.data[i] as u8)).collect()
+    (0..S * S)
+        .flat_map(|i| ch.iter().map(move |c| c.data[i] as u8))
+        .collect()
 }
 
 #[test]
