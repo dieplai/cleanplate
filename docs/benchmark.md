@@ -139,3 +139,9 @@ Four Flow images (1024², 1376×768, 1200×896, 768×1376) carry a fainter diamo
 cleanplate: 4/4 removed, no visible residue in the 4× high-pass view. GWT: 2/4 skipped; on the fruit image it reported
 OK but edited the wrong spot (the diamond stays, a dark arc is added); on the cat image a diamond outline remains.
 wmr: 0/4 detected. Sheet: `out/img_flow/cmp.png`.
+
+### The same Flow stills after a Zalo round trip
+
+Sent as photos to Zalo "My Documents" (HD mode: size kept, re-encoded JPEG ≈ q85) and downloaded back.
+cleanplate: 4/4 removed, measured opacity 0.28–0.30 (same as on the originals). GWT: same failures as on the originals
+(2 skipped, wrong spot on the fruit, outline on the cat). wmr: 0/4. Sheet: `out/img_zalo/cmp.png`.
