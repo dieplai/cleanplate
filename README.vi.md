@@ -91,6 +91,20 @@ có bản 1080p, hãy đưa thêm bản 720p của cùng clip qua `--guide`.
 `crates/cleanplate-cli` lo phần đọc/ghi. Code Python trong `research/` được giữ làm đặc tả tham chiếu và benchmark
 nghiên cứu (`pip install numpy opencv-python`).
 
+### Trên trình duyệt
+
+Thư mục `web/` là một trang kéo-thả tĩnh chạy chính core Rust dưới dạng WebAssembly (ảnh và video MP4/MOV; không
+upload gì cả). Mở bằng Chrome hoặc Edge (video cần WebCodecs):
+
+```bash
+python3 -m http.server 8765 --directory web       # rồi mở http://localhost:8765
+./web/build.sh                                    # sau khi sửa code Rust: build lại web/cleanplate.wasm
+```
+
+Ảnh ra giống hệt CLI từng pixel (2528×1696 mất ~9 s, một luồng). Video 720p dài 8 s mất ~21 s, được nén lại bằng
+H.264 và giữ nguyên âm thanh; trên bench có ground truth thấp hơn bản AV1 của CLI 0,5 dB (39,03 so với 39,52 dB trên
+`night_720p`), do codec chứ không do thuật toán.
+
 ## Cách hoạt động
 
 ```
@@ -123,7 +137,7 @@ Chi tiết, bằng chứng và các ý tưởng đã thử rồi loại: [`docs/
 - [x] Ảnh: tự đo độ phủ, ảnh đã thu nhỏ hoặc nén lại
 - [x] Flow 1080p (`--guide`), video app Gemini, ảnh Flow, ảnh qua Zalo
 - [x] Lõi Rust + một file CLI (Linux, macOS, Windows) — cùng chất lượng bản tham chiếu, nhanh hơn ~16 lần
-- [ ] Trang kéo thả chạy trong trình duyệt (WebAssembly + WebCodecs; file không rời khỏi máy bạn)
+- [x] Trang kéo thả chạy trong trình duyệt (WebAssembly + WebCodecs; file không rời khỏi máy bạn)
 - [ ] Tuỳ chọn upscale kết quả đã sạch
 
 ## Giấy phép

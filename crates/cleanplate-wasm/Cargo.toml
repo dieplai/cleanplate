@@ -1,0 +1,15 @@
+[package]
+name = "cleanplate-wasm"
+version = "0.1.0"
+description = "WebAssembly build of the cleanplate still remover for the browser demo (web/)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cleanplate-core = { path = "../cleanplate-core", default-features = false }

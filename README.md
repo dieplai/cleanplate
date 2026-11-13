@@ -92,6 +92,20 @@ AI upscales of the *marked* video, so the mark is re-drawn and partly destroys w
 `crates/cleanplate-cli` does the IO. The Python code in `research/` stays as the reference specification and the
 research bench (`pip install numpy opencv-python`).
 
+### In the browser
+
+`web/` is a static drag-and-drop page running the same Rust core as WebAssembly (images and MP4/MOV video; nothing is
+uploaded). Serve the folder and open it in Chrome or Edge (video needs WebCodecs):
+
+```bash
+python3 -m http.server 8765 --directory web       # then open http://localhost:8765
+./web/build.sh                                    # after changing the Rust code: rebuild web/cleanplate.wasm
+```
+
+Images come out bit-identical to the CLI (2528×1696 in ~9 s, single-threaded). Video takes ~21 s for an 8 s 720p clip
+and is re-encoded as H.264 with the audio copied; on the ground-truth bench it scores 0.5 dB below the CLI's AV1 output
+(39.03 vs 39.52 dB on `night_720p`), from the codec, not the method.
+
 ## How it works
 
 ```
@@ -124,7 +138,7 @@ Details, evidence and the ideas that were tried and rejected: [`docs/method.md`]
 - [x] Still images, self-calibrated opacity, resized / re-encoded copies
 - [x] Flow 1080p (`--guide`), Gemini-app and Flow stills, Zalo round trip
 - [x] Rust core + single-file CLI (Linux, macOS, Windows) — same quality as the reference, ~16× faster
-- [ ] In-browser drag-and-drop page (WebAssembly + WebCodecs; files never leave your device)
+- [x] In-browser drag-and-drop page (WebAssembly + WebCodecs; files never leave your device)
 - [ ] Optional upscaling of the clean result
 
 ## License
