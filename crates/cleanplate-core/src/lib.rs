@@ -7,6 +7,7 @@ pub mod marks;
 pub mod ncc;
 pub mod plane;
 pub mod tv;
+pub mod video;
 
 pub use plane::Plane;
 
