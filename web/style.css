@@ -89,7 +89,7 @@ a { color: inherit; }
 .btn-github:hover { background: #202533; box-shadow: var(--shadow-md); }
 
 /* ── Layout ── */
-.container { position: relative; width: 100%; max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem 3rem; flex: 1; }
+.container { position: relative; width: 100%; max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem 3rem; flex: 1; overflow-x: clip; /* the hero glow must not widen the page on phones */ }
 
 /* ── Hero ── */
 .hero-section { position: relative; z-index: 3; text-align: center; margin: 2rem auto 2.5rem; max-width: 900px; }
