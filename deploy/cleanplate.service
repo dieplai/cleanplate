@@ -1,0 +1,24 @@
+# /etc/systemd/system/cleanplate.service — the HTTP service behind web/ (see deploy/README.md)
+[Unit]
+Description=Cleanplate web service
+After=network.target
+
+[Service]
+User=cleanplate
+Group=cleanplate
+WorkingDirectory=/opt/cleanplate
+ExecStart=/usr/bin/python3 /opt/cleanplate/server.py
+Environment=CLEANPLATE_BIN=/opt/cleanplate/cleanplate
+# a shared host: lower priority than the other sites, bounded memory
+Nice=10
+MemoryMax=3G
+Restart=on-failure
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
