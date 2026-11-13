@@ -88,3 +88,32 @@ fn video_refuses_clean() {
     assert_eq!(st.code(), Some(2));
     assert!(!out.exists());
 }
+
+#[test]
+fn still_keeps_alpha_channel() {
+    // 1024² smooth texture + the V1 48 px diamond at margin 32, with a non-trivial alpha channel
+    let s = 1024usize;
+    let a = &cleanplate_core::marks::by_name("gemini-diamond-v1-48.png").alpha;
+    let (x0, y0) = (s - 32 - a.w, s - 32 - a.h);
+    let mut img = image::RgbaImage::new(s as u32, s as u32);
+    for (x, y, p) in img.enumerate_pixels_mut() {
+        let (fx, fy) = (x as f32, y as f32);
+        let base = |k: f32| (128.0 + 60.0 * (0.13 * fx + k).sin() * (0.09 * fy - k).cos() + 30.0 * (0.041 * fx * k + 0.07 * fy).sin()).clamp(0.0, 255.0);
+        let mut c = [base(0.3), base(1.1), base(2.0)];
+        let (xx, yy) = (x as usize, y as usize);
+        if xx >= x0 && xx < x0 + a.w && yy >= y0 && yy < y0 + a.h {
+            let al = a.at(xx - x0, yy - y0);
+            c = c.map(|v| (1.0 - al) * v + al * 255.0);
+        }
+        *p = image::Rgba([c[0].round() as u8, c[1].round() as u8, c[2].round() as u8, ((x + y) % 256) as u8]);
+    }
+    let (inp, out) = (tmp("rgba_in.png"), tmp("rgba_out.png"));
+    img.save(&inp).unwrap();
+    let st = Command::new(env!("CARGO_BIN_EXE_cleanplate")).arg(&inp).arg(&out).status().unwrap();
+    assert!(st.success());
+    let o = image::open(&out).unwrap();
+    assert_eq!(o.color(), image::ColorType::Rgba8);
+    let o = o.to_rgba8();
+    assert!(img.pixels().zip(o.pixels()).all(|(a, b)| a[3] == b[3]), "alpha channel must be untouched");
+    assert!(img.pixels().zip(o.pixels()).any(|(a, b)| a[0] != b[0]), "the mark must have been removed");
+}

@@ -95,3 +95,11 @@ fn tv_matches_python() {
     let e = max_err(&out, &plane("tv_out"));
     assert!(e <= 1e-2, "{e}");
 }
+
+#[test]
+fn match_template_fft_matches_direct() {
+    let (img, tpl) = (plane("in_b"), plane("tpl_b"));
+    let a = cleanplate_core::ncc::match_template_ccoeff_normed(&img, &tpl);
+    let b = cleanplate_core::ncc::match_template_fft(&img, &tpl);
+    assert!(max_err(&a, &b) <= 1e-4, "{}", max_err(&a, &b));
+}

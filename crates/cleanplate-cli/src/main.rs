@@ -4,12 +4,12 @@ use cleanplate_cli::video_io::{run, VideoOpts};
 use cleanplate_core::video::Params;
 use std::path::PathBuf;
 
-/// Remove the visible generator mark (Google Veo text, Gemini diamond) from a video, leaving a clean plate.
+/// Remove the visible generator mark (Google Veo text, Gemini diamond) from a video or a still, leaving a clean plate.
 /// Visible marks only: SynthID and C2PA provenance are never touched.
 #[derive(Parser)]
 #[command(version, about)]
 struct Args {
-    /// Input video (as downloaded; native resolution gives the best result)
+    /// Input video or still (.png .jpg .webp); as downloaded — native resolution gives the best result
     input: PathBuf,
     /// Output file (.mov defaults to ProRes 422 HQ)
     output: PathBuf,
@@ -22,7 +22,7 @@ struct Args {
     /// Detection floor away from a generator placement (the effective floor there is at least 0.75)
     #[arg(long, default_value_t = 0.5)]
     min_ncc: f32,
-    /// TV prior strength; −1 = automatic per shot
+    /// TV prior strength; −1 = automatic (per shot for video, from the texture for lossy stills)
     #[arg(long, default_value_t = -1.0, allow_negative_numbers = true)]
     lam: f32,
     /// Disable the TV prior on the mark's edge ring
@@ -43,6 +43,9 @@ fn main() -> Result<()> {
     let a = Args::parse();
     if let Some(t) = a.threads {
         rayon::ThreadPoolBuilder::new().num_threads(t).build_global()?;
+    }
+    if cleanplate_cli::still_io::is_still(&a.input) {
+        std::process::exit(cleanplate_cli::still_io::run(&a.input, &a.output, a.lam)?);
     }
     let params = Params { k: a.k, lam: a.lam, edge_tv: !a.no_edge_tv, ..Params::default() };
     let o = VideoOpts { codec: a.codec, params, min_ncc: a.min_ncc, opaque: a.opaque, guide: a.guide };

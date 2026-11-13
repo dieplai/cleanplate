@@ -16,6 +16,17 @@ for sc in bench/veo31fast_flower_720p bench/night_720p bench/snow_720p bench/tea
   cat out/bench/time.tmp >> $R
   python3 $P/score_gt.py $sc python=out/bench/${set_}_${c}_py.crop.mkv rust=out/bench/${set_}_${c}_rs.crop.mkv | sed "1s|^|${set_}/|" >> $R
 done
+# stills: 9 ground-truth cases (bench_img), same scorer as the Python baseline
+O=out/img_bench
+for m in bench_img/*_meta.json; do
+  c=$(basename $m _meta.json); ext=$(python3 -c "import json;print(json.load(open('$m'))['ext'])")
+  # both write lossless PNG so the comparison is the algorithm, not two JPEG libraries (libjpeg vs pure-Rust encoders
+  # differ by up to 0.3 dB on textured content; with identical decoded input and PNG output Rust == Python exactly)
+  rm -f $O/${c}_rsp.png $O/${c}_pyp.png
+  "$BIN" bench_img/${c}_marked.$ext $O/${c}_rsp.png > /dev/null 2>&1
+  python3 $P/image.py bench_img/${c}_marked.$ext $O/${c}_pyp.png > /dev/null 2>&1
+done
+tools/venv/bin/python $P/img_bench.py score bench_img python=$O/{case}_pyp.png rust=$O/{case}_rsp.png 2>/dev/null | grep -E "_png|jpg90|small" >> $R
 cat $R
 python3 - "$R" <<'PY'
 import re, sys
@@ -32,6 +43,14 @@ for name, sec, kb in re.findall(r"resources (\S+) ([\d.]+) s (\d+) KB", txt):
     if int(kb) > 1_000_000: bad.append(f"{name}: peak RSS {int(kb)/1e3:.0f} MB > 1 GB")
     if ("flower" in name and name.startswith("bench/")) or "teacup" in name:
         if float(sec) > 15: bad.append(f"{name}: {sec} s > 15 s")
+st = {}
+for case, meth, rest in re.findall(r"^(\w+_(?:png|jpg90|small))\s+(python|rust)\s+(.*)$", txt, re.M):
+    st.setdefault(case, {})[meth] = None if "no output" in rest else float(rest.split()[0])
+for case, d in sorted(st.items()):
+    p_, r_ = d.get("python"), d.get("rust")
+    if (p_ is None) != (r_ is None): bad.append(f"still {case}: python {p_} vs rust {r_} (refusal mismatch)")
+    elif p_ is not None and r_ < p_ - 0.05: bad.append(f"still {case}: {r_:.2f} < python {p_:.2f} - 0.05")
+print(f"stills compared: {len(st)}")
 if py and sum(rs) / len(rs) < sum(py) / len(py): bad.append(f"mean PSNR {sum(rs)/len(rs):.2f} < python {sum(py)/len(py):.2f}")
 print(f"\nmean PSNR: python {sum(py)/max(len(py),1):.2f}  rust {sum(rs)/max(len(rs),1):.2f}")
 print("GATE " + ("PASS" if not bad else "FAIL:\n  " + "\n  ".join(bad)))

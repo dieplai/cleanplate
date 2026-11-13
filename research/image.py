@@ -147,6 +147,8 @@ if ds != 0.0: dx, dy = nx, ny
 other = next((c for c in cands if c[1] != sname), None)
 print(f"calibrated: shape {sname}, opacity {gain:.3f}, offset ({dx:+.2f},{dy:+.2f}), edge energy {e0:.1f}"
       + (f" (best other shape {other[1]}: {other[0]:.1f})" if other else ""))
+if gain < 0.15:   # a mark that is not there calibrates to ~0 opacity (real Google marks: 0.28-0.50)
+    sys.exit(f"no mark found with confidence (fitted opacity {gain:.3f} < 0.15) — image left untouched")
 a = np.clip(gain * shape_at(sname, dx, dy, ds), 0, 0.95)
 print(f"  size {msize + ds:.2f}px")
 

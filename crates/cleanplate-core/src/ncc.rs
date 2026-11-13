@@ -56,3 +56,86 @@ pub fn max_loc(p: &Plane) -> (f32, usize, usize) {
     }
     best
 }
+
+/// Precomputed image side of an FFT-based TM_CCOEFF_NORMED: the image spectrum and its integral images.
+pub struct CorrPlan {
+    img_w: usize,
+    img_h: usize,
+    n: usize,
+    m: usize,
+    spec: Vec<crate::fft::C>,
+    s1: Vec<f64>,
+    s2: Vec<f64>,
+}
+
+impl CorrPlan {
+    pub fn new(img: &Plane) -> Self {
+        use crate::fft::{fft2, C};
+        let (n, m) = (img.w.next_power_of_two(), img.h.next_power_of_two());
+        let mut spec = vec![C::default(); n * m];
+        for y in 0..img.h {
+            for x in 0..img.w {
+                spec[y * n + x].re = img.at(x, y) as f64;
+            }
+        }
+        fft2(&mut spec, n, m, false, img.h);
+        let sw = img.w + 1;
+        let (mut s1, mut s2) = (vec![0f64; sw * (img.h + 1)], vec![0f64; sw * (img.h + 1)]);
+        for y in 0..img.h {
+            for x in 0..img.w {
+                let v = img.at(x, y) as f64;
+                let i = (y + 1) * sw + x + 1;
+                s1[i] = v + s1[i - 1] + s1[i - sw] - s1[i - sw - 1];
+                s2[i] = v * v + s2[i - 1] + s2[i - sw] - s2[i - sw - 1];
+            }
+        }
+        CorrPlan { img_w: img.w, img_h: img.h, n, m, spec, s1, s2 }
+    }
+
+    /// Same result as [`match_template_ccoeff_normed`] (correlation through the image spectrum).
+    pub fn match_template(&self, tpl: &Plane) -> Plane {
+        use crate::fft::{fft2, C};
+        let (tw, th, n, m) = (tpl.w, tpl.h, self.n, self.m);
+        let cnt = (tw * th) as f64;
+        let tmean = tpl.data.iter().map(|&v| v as f64).sum::<f64>() / cnt;
+        let mut ts = vec![C::default(); n * m];
+        let mut tnorm = 0f64;
+        for y in 0..th {
+            for x in 0..tw {
+                let v = tpl.at(x, y) as f64 - tmean;
+                ts[y * n + x].re = v;
+                tnorm += v * v;
+            }
+        }
+        let tnorm = tnorm.sqrt();
+        fft2(&mut ts, n, m, false, th);
+        for (t, s) in ts.iter_mut().zip(&self.spec) {
+            // correlation: spec · conj(tspec)
+            *t = C { re: s.re * t.re + s.im * t.im, im: s.im * t.re - s.re * t.im };
+        }
+        fft2(&mut ts, n, m, true, m);
+        let (ow, oh, sw) = (self.img_w - tw + 1, self.img_h - th + 1, self.img_w + 1);
+        let rect = |s: &[f64], x: usize, y: usize| s[(y + th) * sw + x + tw] - s[y * sw + x + tw] - s[(y + th) * sw + x] + s[y * sw + x];
+        let mut out = Plane::new(ow, oh);
+        for y in 0..oh {
+            for x in 0..ow {
+                let num = ts[y * n + x].re;
+                let (sum, sum2) = (rect(&self.s1, x, y), rect(&self.s2, x, y));
+                let t = (sum2 - sum * sum / cnt).max(0.0).sqrt() * tnorm;
+                out.data[y * ow + x] = (if num.abs() < t {
+                    num / t
+                } else if num.abs() < t * 1.125 {
+                    num.signum()
+                } else {
+                    0.0
+                }) as f32;
+            }
+        }
+        out
+    }
+}
+
+/// FFT-based [`match_template_ccoeff_normed`] for large templates/images.
+pub fn match_template_fft(img: &Plane, tpl: &Plane) -> Plane {
+    CorrPlan::new(img).match_template(tpl)
+}
