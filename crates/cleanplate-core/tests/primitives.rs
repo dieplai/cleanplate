@@ -73,3 +73,17 @@ fn remap_matches_opencv() {
         }
     }
 }
+
+#[test]
+fn match_template_matches_opencv() {
+    let r = cleanplate_core::ncc::match_template_ccoeff_normed(&plane("in_b"), &plane("tpl_b"));
+    assert!(max_err(&r, &plane("match_b")) <= 1e-4, "{}", max_err(&r, &plane("match_b")));
+}
+
+#[test]
+fn resize_by_factor_matches_opencv() {
+    use cleanplate_core::geom::{resize_area_fx, resize_cubic_fx};
+    let v = plane("veo_trim");
+    assert!(max_err(&resize_cubic_fx(&v, 1.5), &plane("veo_fx1_5")) <= 1e-4);
+    assert!(max_err(&resize_area_fx(&v, 0.667), &plane("veo_fx0_667")) <= 1e-4);
+}

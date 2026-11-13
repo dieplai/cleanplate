@@ -24,8 +24,7 @@ fn cubic_coeffs(x: f32) -> [f32; 4] {
 }
 
 /// OpenCV `computeResizeAreaTab`: per destination index, the (source index, weight) pairs.
-fn area_tab(ssize: usize, dsize: usize) -> Vec<Vec<(usize, f32)>> {
-    let scale = ssize as f64 / dsize as f64;
+fn area_tab(ssize: usize, dsize: usize, scale: f64) -> Vec<Vec<(usize, f32)>> {
     (0..dsize)
         .map(|dx| {
             let fsx1 = dx as f64 * scale;
@@ -49,7 +48,21 @@ fn area_tab(ssize: usize, dsize: usize) -> Vec<Vec<(usize, f32)>> {
 
 /// `cv2.resize(src, (w, h), interpolation=cv2.INTER_AREA)` for downscaling.
 pub fn resize_area(p: &Plane, w: usize, h: usize) -> Plane {
-    let (tx, ty) = (area_tab(p.w, w), area_tab(p.h, h));
+    area_impl(p, w, h, p.w as f64 / w as f64, p.h as f64 / h as f64)
+}
+
+/// `cv2.resize(src, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)`: size rounded, mapping uses exactly 1/f.
+pub fn resize_area_fx(p: &Plane, f: f64) -> Plane {
+    let (w, h) = fx_size(p, f);
+    area_impl(p, w, h, 1.0 / f, 1.0 / f)
+}
+
+fn fx_size(p: &Plane, f: f64) -> (usize, usize) {
+    ((p.w as f64 * f).round_ties_even() as usize, (p.h as f64 * f).round_ties_even() as usize)
+}
+
+fn area_impl(p: &Plane, w: usize, h: usize, sx: f64, sy: f64) -> Plane {
+    let (tx, ty) = (area_tab(p.w, w, sx), area_tab(p.h, h, sy));
     let mut tmp = Plane::new(w, p.h);
     for y in 0..p.h {
         for (x, t) in tx.iter().enumerate() {
@@ -67,8 +80,17 @@ pub fn resize_area(p: &Plane, w: usize, h: usize) -> Plane {
 
 /// `cv2.resize(src, (w, h), interpolation=cv2.INTER_CUBIC)`: pixel-centre mapping, clamped taps.
 pub fn resize_cubic(p: &Plane, w: usize, h: usize) -> Plane {
-    let taps = |ssize: usize, dsize: usize| -> Vec<([usize; 4], [f32; 4])> {
-        let scale = ssize as f64 / dsize as f64;
+    cubic_impl(p, w, h, p.w as f64 / w as f64, p.h as f64 / h as f64)
+}
+
+/// `cv2.resize(src, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC)`.
+pub fn resize_cubic_fx(p: &Plane, f: f64) -> Plane {
+    let (w, h) = fx_size(p, f);
+    cubic_impl(p, w, h, 1.0 / f, 1.0 / f)
+}
+
+fn cubic_impl(p: &Plane, w: usize, h: usize, sx: f64, sy: f64) -> Plane {
+    let taps = |ssize: usize, dsize: usize, scale: f64| -> Vec<([usize; 4], [f32; 4])> {
         (0..dsize)
             .map(|d| {
                 let f = (d as f64 + 0.5) * scale - 0.5;
@@ -80,7 +102,7 @@ pub fn resize_cubic(p: &Plane, w: usize, h: usize) -> Plane {
             })
             .collect()
     };
-    let (tx, ty) = (taps(p.w, w), taps(p.h, h));
+    let (tx, ty) = (taps(p.w, w, sx), taps(p.h, h, sy));
     let mut tmp = Plane::new(w, p.h);
     for y in 0..p.h {
         for (x, (i, c)) in tx.iter().enumerate() {

@@ -10,3 +10,9 @@ repository = "https://github.com/dieplai/cleanplate"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+[profile.test]
+opt-level = 2
+
+[profile.dev]
+opt-level = 1

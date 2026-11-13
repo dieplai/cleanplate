@@ -33,3 +33,47 @@ for interp, iname in ((cv2.INTER_LINEAR, "linear"), (cv2.INTER_CUBIC, "cubic")):
     save(f"remap_{iname}_rep", cv2.remap(a, mx, my, interp, borderMode=cv2.BORDER_REPLICATE))
     save(f"remap_{iname}_const", cv2.remap(a, mx, my, interp, borderMode=cv2.BORDER_CONSTANT, borderValue=0))
 print("fixtures ->", os.path.abspath(OUT), len(os.listdir(OUT)), "files")
+
+# ---- Task 2: template matching, resize by factor, video detection (inputs: 3 corner frames per clip)
+tpl = b[5:17, 6:26].copy(); save("tpl_b", tpl)
+save("match_b", cv2.matchTemplate(b, tpl, cv2.TM_CCOEFF_NORMED))
+v = cv2.imread(os.path.join(os.path.dirname(__file__), "..", "assets", "marks", "google", "veo-small-720p.png"), 0).astype(np.float32) / 255
+ys, xs = np.where(v > 0); v = v[ys.min():ys.max() + 1, xs.min():xs.max() + 1]; save("veo_trim", v)
+save("veo_fx1_5", cv2.resize(v, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC))
+save("veo_fx0_667", cv2.resize(v, None, fx=0.667, fy=0.667, interpolation=cv2.INTER_AREA))
+import glob, subprocess
+BENCH = os.path.join(os.path.dirname(__file__), "..", "..")
+MARKS = os.path.join(os.path.dirname(__file__), "..", "assets", "marks")
+KNOWN = {"veo-small-720p.png": [(16, 16)], "veo-small-1080p.png": [(24, 24)], "gemini-diamond-48.png": [(72, 72), (96, 96)],
+         "gemini-diamond-96.png": [(64, 64), (192, 192)], "gemini-diamond-v1-48.png": [(32, 32), (72, 72), (96, 96)],
+         "gemini-diamond-v1-96.png": [(64, 64), (192, 192)], "gemini-diamond-36.png": [(32, 32)],
+         "veo-legacy-68.png": [(17, 18)]}
+def detect(Yc, W, H, CW, CH, min_ncc=0.5):   # verbatim logic of research/pipeline.py lines 93-125
+    N = len(Yc); step = max(1, N // 120); samp = Yc[::step].astype(np.float32)
+    hp = (samp - np.array([cv2.GaussianBlur(s, (0, 0), 3) for s in samp])).mean(0)
+    best = None
+    for f in sorted(glob.glob(os.path.join(MARKS, "*", "*.png"))):
+        A0 = cv2.imread(f, cv2.IMREAD_GRAYSCALE).astype(np.float32) / 255.0
+        ys, xs = np.where(A0 > 0); A0 = A0[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        for sc in sorted({1.0, round(min(W, H) / 720, 3)}):
+            A = cv2.resize(A0, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA if sc < 1 else cv2.INTER_CUBIC) if sc != 1 else A0
+            if A.shape[0] >= CH or A.shape[1] >= CW or min(A.shape) < 6: continue
+            t = A - cv2.GaussianBlur(A, (0, 0), 3)
+            r = cv2.matchTemplate(hp, t, cv2.TM_CCOEFF_NORMED); _, sc_, _, loc = cv2.minMaxLoc(r)
+            if best is None or sc_ > best[0]: best = (sc_, os.path.basename(f), sc, loc, A)
+    ncc, name, sc, (mx, my), A = best
+    mr, mb = CW - (mx + A.shape[1]), CH - (my + A.shape[0])
+    known = any(abs(mr - r * sc) <= 3 and abs(mb - b * sc) <= 3 for r, b in KNOWN.get(name, []))
+    floor_ = 0.45 if known else max(min_ncc, 0.75)
+    return dict(name=name, scale=sc, x=mx, y=my, ncc=float(ncc), known=known, floor=floor_, ok=ncc >= floor_)
+SEL3 = "select='eq(n\\,0)+eq(n\\,60)+eq(n\\,120)'"
+SEL8 = "select='not(mod(n\\,24))'"
+for tag, clip, sel in (("veo", "bench/veo31fast_flower_720p_marked.mp4", SEL3), ("diamond", "bench_diamond/veo31fast_flower_720p_marked.mp4", SEL8),
+                       ("clean", "bench/veo31fast_flower_720p_floor.mp4", SEL3)):
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", os.path.join(BENCH, clip), "-vf", sel,
+                          "-vsync", "0", "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True).stdout
+    fr = np.frombuffer(raw, np.uint8).reshape(-1, 720, 1280)[:, 720 - 320:, 1280 - 480:]
+    save(f"corners_{tag}", fr)
+    d = detect(fr, 1280, 720, 480, 320)
+    save(f"det_{tag}", np.array([d["x"], d["y"], d["ncc"], d["scale"], float(d["ok"]), float(d["known"])], np.float32))
+    print(tag, d)
