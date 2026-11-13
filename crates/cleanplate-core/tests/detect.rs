@@ -1,4 +1,5 @@
 //! Video detection and shot cuts against research/pipeline.py on real corner crops (fixtures).
+#![allow(clippy::needless_range_loop)]
 use cleanplate_core::detect::{detect_video, shot_cuts};
 use cleanplate_core::Plane;
 

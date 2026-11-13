@@ -1,5 +1,6 @@
 //! Golden tests: each primitive against the OpenCV call research/pipeline.py makes (fixtures from
 //! research/export_fixtures.py).
+#![allow(clippy::needless_range_loop)]
 use cleanplate_core::filter::{dilate_rect, gaussian_blur, harmonic_fill, sobel3};
 use cleanplate_core::geom::{remap, resize_area, resize_cubic, Border, Interp};
 use cleanplate_core::Plane;

@@ -1,4 +1,5 @@
 //! DIS optical flow (OpenCV PRESET_MEDIUM) against OpenCV on real region-sized crops and a synthetic translation.
+#![allow(clippy::needless_range_loop)]
 use cleanplate_core::flow::dis_flow;
 use cleanplate_core::Plane;
 

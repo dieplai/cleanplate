@@ -1,4 +1,5 @@
 //! End-to-end checks of the cleanplate binary on tiny generated clips (skipped when ffmpeg is absent).
+#![allow(clippy::needless_range_loop)]
 use cleanplate_cli::ffmpeg::{encoder_args, Probe};
 use std::path::{Path, PathBuf};
 use std::process::Command;

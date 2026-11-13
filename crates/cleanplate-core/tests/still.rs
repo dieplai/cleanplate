@@ -1,5 +1,6 @@
 //! Stills: a synthetic textured image with the real V1 diamond at the Gemini still placement (port of
 //! tests/test_image.py).
+#![allow(clippy::needless_range_loop)]
 use cleanplate_core::filter::gaussian_blur;
 use cleanplate_core::marks::by_name;
 use cleanplate_core::still::remove_still;

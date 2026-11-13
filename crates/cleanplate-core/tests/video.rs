@@ -1,4 +1,5 @@
 //! Video region rebuild on synthetic clips with known ground truth.
+#![allow(clippy::needless_range_loop)]
 use cleanplate_core::detect::Detection;
 use cleanplate_core::marks::by_name;
 use cleanplate_core::video::{place_alpha, prepare_alpha, rebuild, region_bounds, Params};
