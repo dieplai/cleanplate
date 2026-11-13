@@ -34,7 +34,7 @@ impl Vid {
         )];
         let mut push = |m: String| log.push(m);
         if let Err(r) = self.s.detect(0.5, -1, false, &mut push) {
-            push(format!("{r} — video left untouched"));
+            push(format!("{r} - video left untouched"));
             return (2, log.join("\n"));
         }
         let params = Params {

@@ -24,7 +24,7 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
     let has_alpha = img.color().has_alpha();
     if img.color().bytes_per_pixel() > img.color().channel_count() {
         eprintln!(
-            "note: {} has 16-bit channels; the result is saved with 8-bit channels",
+            "note: {} has 16-bit channels, the result is saved with 8-bit channels",
             inp.display()
         );
     }
@@ -45,7 +45,7 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
     let r = match remove_still(&rgb, w, h, lossy, lam) {
         Ok(r) => r,
         Err(e) => {
-            println!("{e} — image left untouched");
+            println!("{e} - image left untouched");
             return Ok(2);
         }
     };

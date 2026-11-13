@@ -15,6 +15,6 @@ cp deploy/cleanplate.service /etc/systemd/system/ && systemctl enable --now clea
 cp deploy/nginx.conf /etc/nginx/sites-available/<your domain>   # edit server_name and certificate paths
 ```
 
-Limits (environment of the service): `CLEANPLATE_MAX_MB` (95; Cloudflare's free plan caps uploads at 100 MB),
-`CLEANPLATE_TIMEOUT` (95 s; Cloudflare drops responses after 100 s). One file is cleaned at a time; uploads and
+Limits (environment of the service): `CLEANPLATE_MAX_MB` (95, Cloudflare's free plan caps uploads at 100 MB),
+`CLEANPLATE_TIMEOUT` (95 s, Cloudflare drops responses after 100 s). One file is cleaned at a time. Uploads and
 results are deleted as soon as the response is sent.

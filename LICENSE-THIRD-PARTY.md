@@ -1,29 +1,29 @@
 # Third-party notices
 
 Cleanplate itself is released under the [MIT License](./LICENSE). It contains, is derived from, or ships with the
-work of others listed below; their licenses apply to those parts. Thank you to all of them.
+work of others listed below. Their licenses apply to those parts. Thank you to all of them.
 
 ## 1. Work Cleanplate is derived from
 
-### OpenCV — Apache License 2.0
+### OpenCV - Apache License 2.0
 
 Parts of `crates/cleanplate-core` re-implement OpenCV algorithms in Rust so that the port reproduces the
 reference pipeline (which used `opencv-python`) exactly:
 
 - `src/flow.rs`: Dense Inverse Search optical flow, following the structure and the `PRESET_MEDIUM` parameters of
   OpenCV's `modules/video/src/dis_flow.cpp` (coarse-to-fine inverse search, stripes, densification, variational
-  refinement);
+  refinement).
 - `src/geom.rs`, `src/filter.rs`, `src/ncc.rs`: the semantics of `cv::resize` (`INTER_AREA`, `INTER_CUBIC`,
   `INTER_LINEAR`), `cv::remap`, `cv::GaussianBlur` / `getGaussianKernel`, `cv::Sobel`, `cv::dilate` and
   `cv::matchTemplate(TM_CCOEFF_NORMED)`, including border handling.
 
-No OpenCV source file is bundled. Copyright © OpenCV team and contributors; https://github.com/opencv/opencv. The
+No OpenCV source file is bundled. Copyright © OpenCV team and contributors, https://github.com/opencv/opencv. The
 full license text is in section 5.
 
-### froggeric/gemini-watermark-and-synthid-remover — MIT
+### froggeric/gemini-watermark-and-synthid-remover - MIT
 
 The Gemini ✦ templates (36, 48 and 96 px, both renderings) and the legacy Veo text templates in
-`assets/marks/google/` come from this project; see [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) for the exact
+`assets/marks/google/` come from this project. See [ATTRIBUTION](./assets/marks/google/ATTRIBUTION.md) for the exact
 files. https://github.com/froggeric/gemini-watermark-and-synthid-remover
 
 ```
@@ -50,7 +50,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### ishara-madu/gemini-watermark-remover — MIT
+### ishara-madu/gemini-watermark-remover - MIT
 
 The layout and styles of the browser page (`web/index.html`, `web/style.css`: header, hero, decorative frames, tabs,
 card, drop zone, buttons) are adapted from it, and its sparkle logo is used (`web/assets/logo.png`,
@@ -83,7 +83,7 @@ SOFTWARE.
 
 ## 2. Shipped with the browser page (`web/`)
 
-### mp4box.js 0.5.2 (`web/vendor/mp4box.all.min.js`) — BSD 3-Clause
+### mp4box.js 0.5.2 (`web/vendor/mp4box.all.min.js`) - BSD 3-Clause
 
 https://github.com/gpac/mp4box.js
 
@@ -114,7 +114,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### mp4-muxer 5.1.3 (`web/vendor/mp4-muxer.min.js`) — MIT
+### mp4-muxer 5.1.3 (`web/vendor/mp4-muxer.min.js`) - MIT
 
 https://github.com/Vanilagy/mp4-muxer
 
@@ -142,7 +142,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### coi-serviceworker 0.1.7 (`web/coi-serviceworker.min.js`) — MIT
+### coi-serviceworker 0.1.7 (`web/coi-serviceworker.min.js`) - MIT
 
 https://github.com/gzuidhof/coi-serviceworker
 
@@ -170,13 +170,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### Plus Jakarta Sans (`web/fonts/`) — SIL Open Font License 1.1
+### Plus Jakarta Sans (`web/fonts/`) - SIL Open Font License 1.1
 
-Designed by Tokotype; files from `@fontsource-variable/plus-jakarta-sans` 5.2.5. Full license text in section 5.
+Designed by Tokotype. Files from `@fontsource-variable/plus-jakarta-sans` 5.2.5. Full license text in section 5.
 
 ## 3. Rust crates compiled into the CLI and the WebAssembly builds
 
-Every crate below is permissively licensed; where a choice is offered (`A OR B`), Cleanplate uses it under the MIT
+Every crate below is permissively licensed. Where a choice is offered (`A OR B`), Cleanplate uses it under the MIT
 License. Their license files are in each crate's source on crates.io.
 
 | Crate | Version | License | Source |
@@ -290,7 +290,7 @@ authorization of the copyright holder.
 ## 4. Used for research only (not distributed)
 
 `research/` uses NumPy (BSD-3-Clause) and OpenCV for Python (`opencv-python`, Apache-2.0 / MIT) to define and
-benchmark the method; neither is part of the CLI, the WebAssembly builds or the page.
+benchmark the method. Neither is part of the CLI, the WebAssembly builds or the page.
 
 ## 5. Full license texts
 

@@ -24,7 +24,7 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     let log = |m: String| println!("[{:6.1}s] {m}", t0.elapsed().as_secs_f32());
     if out.exists() && std::fs::canonicalize(inp)? == std::fs::canonicalize(out)? {
         anyhow::bail!(
-            "the output {} is the input file; choose another name",
+            "the output {} is the input file, choose another name",
             out.display()
         );
     }
@@ -54,7 +54,7 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     let found = match s.detect(o.min_ncc, o.opaque, o.guide.is_some(), &mut logf) {
         Ok(f) => f,
         Err(r) => {
-            println!("{r} — leaving the video untouched");
+            println!("{r} - leaving the video untouched");
             return Ok(2);
         }
     };
@@ -98,7 +98,7 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     };
     if let Some(msg) = failed {
         let _ = std::fs::remove_file(out);
-        anyhow::bail!("{msg}; no output written");
+        anyhow::bail!("{msg}, no output written");
     }
     let mb = std::fs::metadata(out)
         .map(|m| m.len() as f64 / 1e6)

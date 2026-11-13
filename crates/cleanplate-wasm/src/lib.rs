@@ -127,7 +127,7 @@ pub unsafe extern "C" fn cp_remove(rgb: *const u8, w: usize, h: usize, lossy: u3
 pub fn run(px: &[u8], w: usize, h: usize, lossy: bool) -> (u32, String, Vec<u8>) {
     match remove_still(px, w, h, lossy, -1.0) {
         Ok(r) => (0, r.log.join("\n"), r.rgb),
-        Err(e) => (2, format!("{e} — image left untouched"), vec![]),
+        Err(e) => (2, format!("{e} - image left untouched"), vec![]),
     }
 }
 

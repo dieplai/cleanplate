@@ -65,7 +65,7 @@ class Handler(BaseHTTPRequestHandler):
         if size > MAX_BYTES:
             return self._json(413, {"error": f"file larger than {MAX_BYTES >> 20} MB"})
         if not JOB.acquire(timeout=QUEUE_WAIT):
-            return self._json(503, {"error": "the server is busy with another file; try again in a minute"})
+            return self._json(503, {"error": "the server is busy with another file, try again in a minute"})
         try:
             with tempfile.TemporaryDirectory(prefix="cleanplate-") as d:
                 inp = os.path.join(d, "in." + ext)
@@ -82,7 +82,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     p = subprocess.run([BIN, inp, out], capture_output=True, text=True, timeout=TIMEOUT)
                 except subprocess.TimeoutExpired:
-                    return self._json(504, {"error": f"took longer than {TIMEOUT} s; use the CLI for long clips"})
+                    return self._json(504, {"error": f"took longer than {TIMEOUT} s, use the CLI for long clips"})
                 secs = time.monotonic() - t0
                 log = (p.stdout + p.stderr).strip()
                 if p.returncode == 2:

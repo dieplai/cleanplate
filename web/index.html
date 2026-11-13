@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <!-- static hosts (GitHub Pages) cannot send COOP/COEP; this service worker adds them so all CPU cores can be used.
+  <!-- static hosts (GitHub Pages) cannot send COOP/COEP. This service worker adds them so all CPU cores can be used.
        It does nothing when the server already sends them (deploy/nginx.conf). -->
   <script src="coi-serviceworker.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -36,8 +36,8 @@
       <h1 class="hero-title">Remove the visible AI mark.<br /><span class="hero-accent">Keep every other pixel.</span></h1>
       <p class="hero-description">
         Cleanplate finds the Gemini / Nano Banana diamond or the Veo mark, measures it on <strong>your</strong> file and
-        un-blends it exactly; on video it recovers the hidden pixels from neighbouring frames. Everything runs in this
-        tab — nothing is uploaded.
+        un-blends it exactly. On video it recovers the hidden pixels from neighbouring frames. Everything runs in this
+        tab - nothing is uploaded.
       </p>
       <div class="hero-badges">
         <span class="hero-badge-pill"><i class="dot" style="--c:#0d9488"></i>Runs on your device</span>
@@ -74,7 +74,7 @@
       </div>
 
       <div id="refused" class="notice hidden">
-        <p class="notice-title">No mark found with confidence — image left untouched</p>
+        <p class="notice-title">No mark found with confidence - image left untouched</p>
         <p class="notice-sub">Cleanplate only acts when it is sure the known mark is there. If you see one, please open an issue with the image.</p>
         <pre id="refused-log" class="log"></pre>
         <button class="btn btn-secondary js-again" type="button">Try another image</button>
@@ -120,7 +120,7 @@
       </div>
 
       <div id="v-refused" class="notice hidden">
-        <p class="notice-title">No mark found with confidence — video left untouched</p>
+        <p class="notice-title">No mark found with confidence - video left untouched</p>
         <pre id="v-refused-log" class="log"></pre>
         <button class="btn btn-secondary js-v-again" type="button">Try another video</button>
       </div>

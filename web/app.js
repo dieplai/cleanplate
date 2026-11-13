@@ -63,7 +63,7 @@ function serverClean(file, onUpload) {
       let j = {};
       try { j = JSON.parse(await x.response.text()); } catch { /* not JSON (proxy error page) */ }
       if (x.status === 422) resolve({ status: 2, log: j.log || '' });
-      else if (x.status === 429) reject(new Error('too many files from your connection; wait a minute and try again'));
+      else if (x.status === 429) reject(new Error('too many files from your connection, wait a minute and try again'));
       else reject(new Error(j.error || `server answered ${x.status}`));
     };
     x.onerror = () => reject(new Error('network error'));
@@ -291,7 +291,7 @@ async function vServer(file) {
 async function vHandle(file) {
   if (!file) return;
   if (preferServer()) return vServer(file);
-  if (!('VideoDecoder' in window) || !('VideoEncoder' in window)) return vFail('This browser has no WebCodecs; use a recent Chrome or Edge, or the CLI.');
+  if (!('VideoDecoder' in window) || !('VideoEncoder' in window)) return vFail('This browser has no WebCodecs. Use a recent Chrome or Edge, or the CLI.');
   if (!/\.(mp4|mov|m4v)$/i.test(file.name) && !/^video\/(mp4|quicktime)$/.test(file.type)) return vFail('Use an MP4 or MOV file (WebM/MKV: use the CLI).');
   vReset();
   const src = URL.createObjectURL(file);

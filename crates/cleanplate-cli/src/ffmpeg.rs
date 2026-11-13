@@ -29,7 +29,7 @@ pub fn install_hint() -> &'static str {
 fn spawn_err(prog: &str, e: std::io::Error) -> anyhow::Error {
     if e.kind() == std::io::ErrorKind::NotFound {
         anyhow!(
-            "`{prog}` was not found on PATH: video needs ffmpeg — {}",
+            "`{prog}` was not found on PATH: video needs ffmpeg - {}",
             install_hint()
         )
     } else {
@@ -166,7 +166,7 @@ pub fn pick_codec(req: &str, out: &Path, has: impl Fn(&str) -> bool) -> Result<S
     if req != "auto" {
         let e = enc(req).with_context(|| format!("unknown codec {req}"))?;
         if !has(e) {
-            bail!("this ffmpeg build has no {e} encoder for --codec {req}; use --codec auto");
+            bail!("this ffmpeg build has no {e} encoder for --codec {req}, use --codec auto");
         }
         return Ok(req.into());
     }
@@ -181,7 +181,7 @@ pub fn pick_codec(req: &str, out: &Path, has: impl Fn(&str) -> bool) -> Result<S
         .map(|c| c.to_string())
         .with_context(|| {
             format!(
-                "this ffmpeg build has none of the encoders for .{ext} ({}); install a full ffmpeg build or write .mkv",
+                "this ffmpeg build has none of the encoders for .{ext} ({}). Install a full ffmpeg build or write .mkv",
                 order.iter().map(|c| enc(c).unwrap()).collect::<Vec<_>>().join(", ")
             )
         })

@@ -1,4 +1,4 @@
-# Mark templates — provenance
+# Mark templates - provenance
 
 | File | Source | License |
 |---|---|---|

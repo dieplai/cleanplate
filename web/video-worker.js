@@ -98,7 +98,7 @@ async function toI420(fr, dst, w, h) {
       dst[w * h + q + i] = tmp[w * h + 2 * i + 1];
     }
   } else {
-    throw new Error(`decoder returned ${fr.format} frames; only 8-bit 4:2:0 video is supported here (use the CLI)`);
+    throw new Error(`decoder returned ${fr.format} frames, only 8-bit 4:2:0 video is supported here (use the CLI)`);
   }
 }
 
