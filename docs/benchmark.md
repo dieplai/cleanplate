@@ -106,3 +106,28 @@ a weak candidate left white specks and a dark glyph-shaped fill (values ×20 the
 
 Advice for film work: if you can choose, **download 720p and clean that**; the 720p mark is a true alpha overlay and
 comes out at the ground-truth floor on moving shots. Upscale after cleaning if you need 1080p.
+
+## Still images (Gemini ✦) — `research/image.py`
+
+Ground truth: a real 2528×1696 Gemini image, flipped so a mark-free quadrant (brick wall, white kitchen, neon
+portrait) sits under the mark; the real "V1" diamond (96 px, margin 64, alpha 0.50) composited, then delivered as the
+PNG Gemini gives you, a JPEG q90 re-save, or a 60 % resized JPEG q85 (a shared copy). PSNR inside the mark box (dB);
+the PNG ceiling is the 8-bit inversion limit (~60). `research/img_bench.py`.
+
+| Case | GWT | wmr | cleanplate | ceiling |
+|---|---|---|---|---|
+| Brick, PNG | 43.4 | 56.4 | **56.4** | 60 |
+| Neon, PNG | 40.2 | 56.4 | **56.5** | 60 |
+| Brick, JPEG q90 | 32.7 | 33.0 | **33.0** | 35.4 |
+| Neon, JPEG q90 | 36.0 | 37.3 | **40.8** | 42.3 |
+| Brick, resized 60 % + JPEG | not detected | not detected | **30.4** | 32.3 |
+| Neon, resized 60 % + JPEG | not detected | 15.5 (wrong mark) | **36.1** | 43.9 (exact-alpha inversion: 36.6) |
+| White kitchen (mark adds ≤ 7 levels on 253) | not detected | not detected | not detected (refused) | — |
+
+How: the template gives only the SHAPE; opacity is fitted on the image (zero-crossing of the signed correlation
+between the restored image's gradient and the mark's gradient — 0.498–0.504 measured vs 0.498 true), snapped to the
+shape's native level when within reach; size is searched continuously only for resized copies; JPEG inputs get a
+weighted-TV step whose strength follows the texture around the mark (brick wants ~1, a smooth neon scene ~6).
+Detection is scale-free (generator margins are 2/3× or 2× the mark size). The 9 clean versions are all refused.
+Gemini has shipped the same diamond at alpha 0.30 ("V2") and 0.50 ("V1", this image); a fixed-opacity template
+under-removes one of them — the reason opacity is measured, not assumed.

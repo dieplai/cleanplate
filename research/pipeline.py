@@ -112,7 +112,8 @@ ncc, mname, mscale, (mx, my), A = best
 # (white text on a bright, busy background — real teacup clip scored 0.55) may pass a lower bar. (right, bottom) margins
 # in pixels at the template's native scale.
 KNOWN = {"veo-small-720p.png": [(16, 16)], "veo-small-1080p.png": [(24, 24)], "gemini-diamond-48.png": [(72, 72), (96, 96)],
-         "gemini-diamond-96.png": [(64, 64), (192, 192)], "gemini-diamond-36.png": [(32, 32)],
+         "gemini-diamond-96.png": [(64, 64), (192, 192)], "gemini-diamond-v1-48.png": [(32, 32), (72, 72), (96, 96)],
+         "gemini-diamond-v1-96.png": [(64, 64), (192, 192)], "gemini-diamond-36.png": [(32, 32)],
          "veo-legacy-68.png": [(17, 18)]}
 mr, mb = CW - (mx + A.shape[1]), CH - (my + A.shape[0])
 at_known = any(abs(mr - r * mscale) <= 3 and abs(mb - b * mscale) <= 3 for r, b in KNOWN.get(os.path.basename(mname), []))
