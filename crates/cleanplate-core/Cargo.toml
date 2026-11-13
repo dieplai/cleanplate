@@ -1,0 +1,18 @@
+[package]
+name = "cleanplate-core"
+version = "0.1.0"
+description = "Pure-compute core of cleanplate: remove visible generator marks from video and stills"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["parallel"]
+parallel = ["dep:rayon"]
+
+[dependencies]
+rayon = { version = "1", optional = true }
+png = "0.17"
+
+[dev-dependencies]
+npyz = "0.8"

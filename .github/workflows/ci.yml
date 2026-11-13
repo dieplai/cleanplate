@@ -11,3 +11,10 @@ jobs:
       - run: pip install numpy opencv-python-headless
       - run: python -m py_compile research/*.py
       - run: python tests/test_image.py
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all
