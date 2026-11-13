@@ -437,3 +437,14 @@ fn rotated_video_is_probed_upright() {
         String::from_utf8_lossy(&o.stderr)
     );
 }
+
+#[test]
+fn errors_point_to_the_issue_tracker() {
+    let o = run_cli(&["missing-file.png".as_ref(), "out.png".as_ref()]);
+    assert_eq!(o.status.code(), Some(1));
+    let e = String::from_utf8_lossy(&o.stderr);
+    assert!(
+        e.starts_with("error: ") && e.contains("github.com/dieplai/cleanplate/issues"),
+        "{e}"
+    );
+}

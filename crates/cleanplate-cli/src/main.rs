@@ -41,7 +41,18 @@ struct Args {
     threads: Option<usize>,
 }
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = real_main() {
+        eprintln!("error: {e:#}");
+        eprintln!(
+            "If this looks like a bug, please report it (no need to attach the file at first): \
+             https://github.com/dieplai/cleanplate/issues/new?template=bad_result.md"
+        );
+        std::process::exit(1);
+    }
+}
+
+fn real_main() -> Result<()> {
     // usage errors exit 1: exit code 2 means "no mark found, nothing written"
     let a = Args::try_parse().unwrap_or_else(|e| {
         let _ = e.print();

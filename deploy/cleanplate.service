@@ -9,6 +9,8 @@ Group=cleanplate
 WorkingDirectory=/opt/cleanplate
 ExecStart=/usr/bin/python3 /opt/cleanplate/server.py
 Environment=CLEANPLATE_BIN=/opt/cleanplate/cleanplate
+# feedback database: /var/lib/cleanplate/feedback.db (writable despite ProtectSystem=strict)
+StateDirectory=cleanplate
 # a shared host: lower priority than the other sites, bounded memory
 Nice=10
 MemoryMax=3G

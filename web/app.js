@@ -95,12 +95,14 @@ function show(v) {
 function fail(msg) {
   clearInterval(timer);
   show('dropzone');
-  $('error').textContent = msg;
+  $('error').querySelector('.error-text').textContent = msg;
+  noteIssue('image', { error: msg });
   $('error').classList.remove('hidden');
 }
 
 async function handle(file) {
   if (!file) return;
+  lastFile = { area: 'image', type: file.type, size_mb: +(file.size / 2 ** 20).toFixed(2) };
   if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return fail(`Unsupported file type: ${file.type || file.name}. Use PNG, JPG or WebP.`);
   let bmp;
   try {
@@ -120,6 +122,8 @@ async function handle(file) {
     rgb[j + 2] = src.data[i + 2];
   }
   cur = { name: file.name.replace(/\.[^.]+$/, ''), w, h, src, t0: performance.now() };
+  lastFile.width = w;
+  lastFile.height = h;
   $('busy-name').textContent = file.name;
   show('busy');
   timer = setInterval(() => ($('busy-time').textContent = ((performance.now() - cur.t0) / 1000).toFixed(1)), 100);
@@ -145,6 +149,7 @@ function onImageResult(data) {
   if (data.error) return fail(`cleanplate crashed on this image (${data.error}). Please report it.`);
   if (data.status !== 0) {
     $('refused-log').textContent = data.log;
+    noteIssue('image', { refused: data.log });
     return show('refused');
   }
   const { w, h, src } = cur;
@@ -243,7 +248,8 @@ function vReset() {
 function vFail(msg) {
   vReset();
   vShow('v-dropzone');
-  $('v-error').textContent = msg;
+  $('v-error').querySelector('.error-text').textContent = msg;
+  noteIssue('video', { error: msg });
   $('v-error').classList.remove('hidden');
 }
 
@@ -264,6 +270,7 @@ function vDone(src, mp4, log) {
 }
 function vRefused(log) {
   $('v-refused-log').textContent = log;
+  noteIssue('video', { refused: log });
   clearInterval(vJob.timer);
   vShow('v-refused');
 }
@@ -290,6 +297,7 @@ async function vServer(file) {
 
 async function vHandle(file) {
   if (!file) return;
+  lastFile = { area: 'video', type: file.type, size_mb: +(file.size / 2 ** 20).toFixed(2) };
   if (preferServer()) return vServer(file);
   if (!('VideoDecoder' in window) || !('VideoEncoder' in window)) return vFail('This browser has no WebCodecs. Use a recent Chrome or Edge, or the CLI.');
   if (!/\.(mp4|mov|m4v)$/i.test(file.name) && !/^video\/(mp4|quicktime)$/.test(file.type)) return vFail('Use an MP4 or MOV file (WebM/MKV: use the CLI).');
@@ -372,3 +380,79 @@ function vZoomDraw() {
   }
 }
 (function loop() { if (!$('v-result').classList.contains('hidden')) vZoomDraw(); requestAnimationFrame(loop); })();
+
+// ── feedback: a dialog that posts to the Cleanplate server (deploy/server.py), listed at /admin there ──
+const FEEDBACK_API = 'https://cleanplate.dieplai.io.vn/api/feedback';
+const ISSUES = 'https://github.com/dieplai/cleanplate/issues/new';
+let lastFile = null; // type, size, dimensions of the last file (never its name or content)
+let lastIssue = null; // the last error or refusal, offered with "Report this"
+
+function noteIssue(area, what) {
+  lastIssue = { area, ...what, file: lastFile };
+}
+
+function techDetails(kind) {
+  return {
+    page: location.origin + location.pathname,
+    browser: navigator.userAgent,
+    cores: navigator.hardwareConcurrency,
+    ram_gb: navigator.deviceMemory,
+    engine: SERVER && preferServer() ? `server (${SERVER.cores} cores)` : `browser, ${THREADS || '?'} threads`,
+    isolated: self.crossOriginIsolated,
+    memory_budget_mb: BUDGET_MB,
+    ...(kind !== 'idea' && lastIssue ? { last: lastIssue } : {}),
+  };
+}
+
+function openFeedback(kind) {
+  const f = $('fb-form');
+  f.reset();
+  f.querySelector(`input[name=kind][value=${kind}]`).checked = true;
+  $('fb-ctx').textContent = JSON.stringify(techDetails(kind), null, 2);
+  $('fb-status').textContent = '';
+  $('fb-status').className = 'fb-status';
+  $('fb-send').disabled = false;
+  $('fb').showModal();
+  $('fb-msg').focus();
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.js-feedback');
+  if (b) openFeedback(b.dataset.kind || 'idea');
+});
+$('fb-cancel').addEventListener('click', () => $('fb').close());
+$('fb-ctx-on').addEventListener('change', (e) => $('fb-ctx').classList.toggle('hidden', !e.target.checked));
+$('fb-form').addEventListener('change', (e) => {
+  if (e.target.name === 'kind') $('fb-ctx').textContent = JSON.stringify(techDetails(e.target.value), null, 2);
+});
+$('fb-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const kind = new FormData($('fb-form')).get('kind');
+  const body = {
+    kind,
+    message: $('fb-msg').value.trim(),
+    email: $('fb-email').value.trim(),
+    context: $('fb-ctx-on').checked ? techDetails(kind) : null,
+  };
+  $('fb-send').disabled = true;
+  $('fb-status').textContent = 'Sending...';
+  try {
+    // text/plain keeps it a simple request (no CORS preflight from GitHub Pages)
+    const r = await fetch(location.origin === new URL(FEEDBACK_API).origin ? 'api/feedback' : FEEDBACK_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(r.status === 429 ? 'too many messages, try again in a minute' : `server answered ${r.status}`);
+    $('fb-status').textContent = 'Thank you, it has been received.';
+    $('fb-status').className = 'fb-status ok';
+    setTimeout(() => $('fb').close(), 1600);
+  } catch (err) {
+    // the server is unreachable: offer the same text as a GitHub issue instead
+    const url = `${ISSUES}?${new URLSearchParams({ title: `[${kind}] ${body.message.slice(0, 60)}`, body: `${body.message}\n\n\`\`\`json\n${JSON.stringify(body.context, null, 2)}\n\`\`\`` })}`;
+    $('fb-status').innerHTML = '';
+    $('fb-status').append(`Could not send (${err.message}). `, Object.assign(document.createElement('a'), { href: url, target: '_blank', rel: 'noopener', textContent: 'Open it as a GitHub issue instead' }));
+    $('fb-status').className = 'fb-status err';
+    $('fb-send').disabled = false;
+  }
+});

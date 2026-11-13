@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Cleanplate · Feedback</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <style>
+    @font-face { font-family: 'Plus Jakarta Sans'; font-weight: 200 800; font-display: swap; src: url(/fonts/plus-jakarta-sans-latin.woff2) format('woff2'); }
+    :root { --bg: #f5f5f7; --card: #fff; --line: #e2e8f0; --text: #0f172a; --muted: #64748b; --brand: #0f766e; }
+    * { box-sizing: border-box; margin: 0; }
+    body { font: 14px/1.5 'Plus Jakarta Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 24px 16px 48px; }
+    main { max-width: 1100px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    header img { width: 32px; height: 32px; }
+    h1 { font-size: 22px; letter-spacing: -0.02em; }
+    .muted { color: var(--muted); }
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; min-width: 120px; }
+    .stat b { display: block; font-size: 22px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    select, input[type=search], button { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: inherit; }
+    button { cursor: pointer; }
+    button.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+    .item.done { opacity: 0.6; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef2f7; }
+    .tag.bug { background: #fee2e2; color: #991b1b; } .tag.idea { background: #dcfce7; color: #166534; }
+    .tag.refused { background: #fef3c7; color: #92400e; } .tag.new { background: #dbeafe; color: #1e40af; }
+    .msg { white-space: pre-wrap; margin: 8px 0; }
+    details { margin-top: 6px; } summary { cursor: pointer; color: var(--muted); }
+    pre { background: #0f172a; color: #cbd5e1; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12px; white-space: pre-wrap; }
+    .spacer { flex: 1; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/assets/logo.png" alt="" />
+    <h1>Feedback</h1>
+    <span class="muted">from the Cleanplate page. Users choose what is sent, never their files.</span>
+  </header>
+  <div class="stats" id="stats"></div>
+  <div class="filters">
+    <select id="f-kind"><option value="">All kinds</option><option>bug</option><option>idea</option><option>refused</option><option>other</option></select>
+    <select id="f-status"><option value="">All statuses</option><option>new</option><option>seen</option><option>done</option></select>
+    <input id="f-text" type="search" placeholder="Search message, email, details" />
+    <span class="spacer"></span>
+    <button id="export">Export JSON</button>
+    <button id="reload" class="primary">Reload</button>
+  </div>
+  <div id="list"><p class="muted">Loading...</p></div>
+</main>
+<script>
+  // Talks to /api/admin/feedback, which nginx only serves behind the same password as this page.
+  const $ = (id) => document.getElementById(id);
+  let items = [];
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  async function load() {
+    const q = new URLSearchParams({ kind: $('f-kind').value, status: $('f-status').value });
+    const r = await fetch(`/api/admin/feedback?${q}`);
+    if (!r.ok) return ($('list').innerHTML = `<p class="muted">Could not load (${r.status}).</p>`);
+    const d = await r.json();
+    items = d.items;
+    const total = (k) => Object.entries(d.counts).filter(([key]) => key.startsWith(k + '/') || key.endsWith('/' + k)).reduce((a, [, n]) => a + n, 0);
+    $('stats').innerHTML = [['new', 'New'], ['bug', 'Bugs'], ['idea', 'Ideas'], ['refused', 'Refused files'], ['done', 'Done']]
+      .map(([k, label]) => `<div class="stat"><b>${total(k)}</b>${label}</div>`).join('');
+    render();
+  }
+
+  function render() {
+    const t = $('f-text').value.toLowerCase();
+    const shown = items.filter((it) => !t || JSON.stringify(it).toLowerCase().includes(t));
+    $('list').innerHTML = shown.length ? shown.map((it) => `
+      <div class="item ${it.status}">
+        <div class="row">
+          <span class="tag ${it.kind}">${it.kind}</span><span class="tag ${it.status}">${it.status}</span>
+          <span class="muted">#${it.id} · ${esc(it.created)} UTC${it.email ? ` · <a href="mailto:${esc(it.email)}">${esc(it.email)}</a>` : ''}</span>
+          <span class="spacer"></span>
+          ${['new', 'seen', 'done'].filter((s) => s !== it.status).map((s) => `<button data-id="${it.id}" data-status="${s}">Mark ${s}</button>`).join('')}
+          <button data-id="${it.id}" data-delete="1" title="Delete (spam)">Delete</button>
+        </div>
+        ${it.message ? `<div class="msg">${esc(it.message)}</div>` : ''}
+        ${it.context ? `<details><summary>Technical details</summary><pre>${esc(JSON.stringify(it.context, null, 2))}</pre></details>` : ''}
+      </div>`).join('') : '<p class="muted">Nothing here.</p>';
+  }
+
+  $('list').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-id]');
+    if (!b) return;
+    if (b.dataset.delete && !confirm(`Delete #${b.dataset.id}? This cannot be undone.`)) return;
+    const body = b.dataset.delete ? { delete: true } : { status: b.dataset.status };
+    await fetch(`/api/admin/feedback/${b.dataset.id}`, { method: 'POST', body: JSON.stringify(body) });
+    load();
+  });
+  $('export').addEventListener('click', () => {
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' })),
+      download: `cleanplate-feedback-${new Date().toISOString().slice(0, 10)}.json`,
+    });
+    a.click();
+  });
+  for (const id of ['f-kind', 'f-status']) $(id).addEventListener('change', load);
+  $('f-text').addEventListener('input', render);
+  $('reload').addEventListener('click', load);
+  load();
+</script>
+</body>
+</html>
