@@ -84,8 +84,10 @@ fn make_clip_with(path: &Path, mark: bool, extra: &[&str]) {
     let mut c = Command::new("ffmpeg")
         .args([
             "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", "640x360", "-r",
-            "24", "-i", "-", "-c:v", "ffv1",
+            "24", "-i", "-",
         ])
+        .args(extra)
+        .args(["-c:v", "ffv1"])
         .arg(path)
         .stdin(std::process::Stdio::piped())
         .spawn()
