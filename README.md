@@ -38,8 +38,10 @@ mark's exact opacity and position on your image instead of assuming them.
 measured: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
 > [!IMPORTANT]
-> **Visible marks only.** cleanplate does not touch SynthID (the invisible watermark) or C2PA provenance. Label
-> AI-generated content as your platform and your audience expect.
+> **Visible marks only.** cleanplate does not touch SynthID (the invisible watermark) or C2PA provenance. Labelling
+> AI-generated content is your responsibility: many places require it by law (Vietnam's AI Law, for instance, requires
+> a visible label on realistic AI images and videos), and platforms have their own rules. Use cleanplate on content
+> you have the right to edit, and keep or add a label wherever one is required.
 
 ## Contents
 

@@ -37,8 +37,10 @@ chính xác của logo ngay trên ảnh của bạn thay vì giả định.
 <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
 > [!IMPORTANT]
-> **Chỉ xoá logo hiển thị.** cleanplate không động tới SynthID (watermark ẩn) hay thông tin nguồn gốc C2PA. Hãy ghi
-> nhãn nội dung do AI tạo theo quy định của nền tảng và kỳ vọng của người xem.
+> **Chỉ xoá logo hiển thị.** cleanplate không động tới SynthID (watermark ẩn) hay thông tin nguồn gốc C2PA. Việc gắn
+> nhãn nội dung do AI tạo là trách nhiệm của bạn: nhiều nơi bắt buộc theo luật (ví dụ Luật Trí tuệ nhân tạo của Việt
+> Nam yêu cầu nhãn hiển thị cho ảnh và video AI giống thật), và mỗi nền tảng có quy định riêng. Chỉ dùng cleanplate cho
+> nội dung bạn có quyền chỉnh sửa, và giữ hoặc thêm nhãn ở những nơi bắt buộc.
 
 ## Mục lục
 
