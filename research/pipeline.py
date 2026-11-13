@@ -36,6 +36,9 @@ ap.add_argument("--chroma-siting", default="left", choices=["left", "center"])
 ap.add_argument("--opaque", type=int, default=-1,
                 help="treat the mark as fully covering its (dilated by N px) support: no inversion, rebuild from other "
                      "frames + TV fill. -1 = auto (on for marks whose look depends on the background, e.g. Flow 1080p)")
+ap.add_argument("--guide", default=None,
+                help="opaque marks: a cleaned lower-resolution version of the SAME clip (e.g. cleanplate's output of the Flow "
+                     "720p download). Its upscaled pixels fill the mark's strokes instead of a spatial guess")
 ap.add_argument("--interp", default="cubic", choices=["cubic", "lanczos"], help="warp interpolation for luma candidates")
 ap.add_argument("--deghost", action="store_true",
                 help="research only: shape-basis static-ghost subtraction. OFF by default — it mistakes a real background/fill "
@@ -132,6 +135,8 @@ if os.path.basename(mname) == "veo-small-720p.png" and abs(mscale - 1.5) < 0.01 
     mx, my = CW - 24 - A.shape[1], CH - 24 - A.shape[0]
     log(f"1.5x 720p glyph at the Flow 1080p placement -> {mname} at ({mx + cx0},{my + cy0})")
 op = args.opaque if args.opaque >= 0 else OPAQUE.get(os.path.basename(mname), -1)
+if args.guide and args.opaque < 0 and op >= 0:
+    op = 3   # with real guide content, also replace the upscaler's ringing/blocky halo around the strokes (+1px left specks)
 if op >= 0:
     A = np.pad(A, op + 1); mx -= op + 1; my -= op + 1
     A = 0.95 * cv2.dilate((A > 0.08).astype(np.uint8), np.ones((2 * op + 1, 2 * op + 1), np.uint8)).astype(np.float32)
@@ -179,6 +184,43 @@ if op >= 0:
     hole_y, hole_c = Ay > 0.5, Ac > 0.3
     Ry = np.array([harmonic(f, hole_y) for f in Jy]); Ru = np.array([harmonic(f, hole_c) for f in Ju])
     Rv = np.array([harmonic(f, hole_c) for f in Jv])
+    if args.guide:
+        # the guide is the same clip, frame for frame (Flow's 1080p only drops the last 2 frames), at lower resolution.
+        # Its cleaned pixels are REAL content; upscale them onto this frame's grid (pixel-centre convention).
+        gs_ = next(x for x in json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-show_streams", "-of", "json",
+                                                                    args.guide]))["streams"] if x["codec_type"] == "video")
+        GW, GH = gs_["width"], gs_["height"]; sg = W / GW; GFS = GW * GH * 3 // 2
+        X0, Y0 = cx0 + rx0, cy0 + ry0
+        gx0 = max(0, int((X0 + 0.5) / sg) - 4) & ~1; gy0 = max(0, int((Y0 + 0.5) / sg) - 4) & ~1
+        gx1 = min(GW, int((X0 + RW) / sg) + 6); gy1 = min(GH, int((Y0 + RH) / sg) + 6)
+        gp = subprocess.Popen(["ffmpeg", "-v", "error", "-i", args.guide, "-f", "rawvideo", "-pix_fmt", "yuv420p", "-"], stdout=subprocess.PIPE)
+        GY, GU, GV = [], [], []
+        while len(GY) < N:
+            b = gp.stdout.read(GFS)
+            if len(b) < GFS: break
+            f = np.frombuffer(b, np.uint8)
+            GY.append(f[:GW * GH].reshape(GH, GW)[gy0:gy1, gx0:gx1].astype(np.float32))
+            GU.append(f[GW * GH:GW * GH * 5 // 4].reshape(GH // 2, GW // 2)[gy0 // 2:gy1 // 2, gx0 // 2:gx1 // 2].astype(np.float32))
+            GV.append(f[GW * GH * 5 // 4:].reshape(GH // 2, GW // 2)[gy0 // 2:gy1 // 2, gx0 // 2:gx1 // 2].astype(np.float32))
+        gp.kill()
+        my_, mx_ = np.mgrid[0:RH, 0:RW].astype(np.float32)
+        mapx, mapy = (X0 + mx_ + 0.5) / sg - 0.5 - gx0, (Y0 + my_ + 0.5) / sg - 0.5 - gy0
+        cy_, cx_ = np.mgrid[0:RH // 2, 0:RW // 2].astype(np.float32)
+        cmapx, cmapy = (X0 // 2 + cx_ + 0.5) / sg - 0.5 - gx0 // 2, (Y0 // 2 + cy_ + 0.5) / sg - 0.5 - gy0 // 2
+        # brightness match per frame on a thin ring just outside the strokes (guide went through another encode)
+        rg_y = cv2.dilate(hole_y.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool) & ~cv2.dilate(
+            (Ay > 0.01).astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+        rg_c = rg_y[::2, ::2] & ~hole_c
+        for t in range(N):
+            k = min(t, len(GY) - 1)
+            for R_, J_, G_, h_, rg, mxy in ((Ry, Jy, GY, hole_y, rg_y, (mapx, mapy)), (Ru, Ju, GU, hole_c, rg_c, (cmapx, cmapy)),
+                                           (Rv, Jv, GV, hole_c, rg_c, (cmapx, cmapy))):
+                g = cv2.remap(G_[k], *mxy, cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                R_[t][h_] = (g + np.median(J_[t][rg] - g[rg]))[h_]
+        # guide-filled strokes count as a half-weight clean observation: native clean pixels from other frames (moving
+        # shots) still win, and the veto checks them against the guide
+        Ay, Ac = (0.29 * hole_y).astype(np.float32), (0.29 * hole_c).astype(np.float32)
+        log(f"guide {GW}x{GH} ({len(GY)} frames, x{sg:.2f}) fills the strokes")
 
 def tv_refine(mu, w, mask, lam, iters=300, eps=1.0):
     """MAP refinement: min sum w (I-mu)^2 + lam*TV_eps(I) over mask pixels (gradient descent).
@@ -232,6 +274,10 @@ for (s0, s1) in shots:
         # static: nothing ever slides out; average many inversions (and let TV-MAP handle the codec ghost)
         K = min(3 * args.K, L_)
         offs = list(range(-K, K + 1))
+        if op >= 0 and args.guide:
+            # the guide already did the temporal work; mixing neighbours of a static shot erased a foot stepping
+            # through the mark (majority = empty pavement) -> use this frame's guide fill only
+            offs = [0]
     # GT grid v4: TV-MAP wins on static/slow shots (<=0.8 px/frame), hurts textured moving ones (>=1.3 px/frame)
     lam = args.lam if args.lam >= 0 else 16.0 * float(np.clip((1.2 - motion) / 0.6, 0, 1))
     clean_w = tot_w = 0.0
@@ -275,11 +321,15 @@ for (s0, s1) in shots:
         #   inversions of a static point share one codec error -> together they count as ONE observation
         conf = (Wr * np.array(cl)).sum(0) + 1.0 / (1.0 + 9.0 * (Ay / (1 - Ay)) ** 2)   # (sigma_codec/sigma_0)^2 = 9
         lam_px = lam
-        if args.edge_tv:
+        clean_sum = (Wr * np.array(cl)).sum(0) - (Ay < 0.02) * Wr[0]
+        if op >= 0:
+            # opaque: TV only on stroke pixels nothing clean landed on (never smooth the real pixels between strokes);
+            # with a guide the strokes hold real content -> no TV at all
+            lam_px = (0.0 if args.guide else 16.0) * (hole_y & (clean_sum < 0.5)).astype(np.float32)
+        elif args.edge_tv:
             # thin ring along the mark's edges, only where no clean observation landed (fast motion): the codec smears
             # the overlay's edge each frame differently, leaving a hairline outline after inversion
-            clean_sum = (Wr * np.array(cl)).sum(0) - (Ay < 0.02) * Wr[0]
-            lam_px = np.maximum(lam, 16.0 * ((M if op >= 0 else EDGE) & (clean_sum < 0.5))).astype(np.float32)
+            lam_px = np.maximum(lam, 16.0 * (EDGE & (clean_sum < 0.5))).astype(np.float32)
         Oy[t] = tv_refine(mu, conf, M, lam_px) if np.max(lam_px) > 0 else np.where(M, mu, Oy[t])
         # chroma: same geometry weights, but its OWN anchor and robust step (colour errors are invisible to luma)
         Wg, Mc, confc = Wt[:, ::2, ::2], M[::2, ::2], conf[::2, ::2]
@@ -292,7 +342,7 @@ for (s0, s1) in shots:
                 dev = np.abs(Cc - muc); sc = np.median(dev, 0) * 1.4826 + 1.5
                 Wcr = Wc * np.minimum(1.0, 1.5 * sc / (dev + 1e-6))
                 muc = (Wcr * Cc).sum(0) / (Wcr.sum(0) + 1e-6)
-            lam_c = lam_px[::2, ::2] if (op >= 0 and args.edge_tv) else lam   # opaque: no inversion to fall back on
+            lam_c = lam_px[::2, ::2] if op >= 0 else lam   # opaque: no inversion to fall back on
             O[t] = tv_refine(muc, confc, Mc, lam_c) if np.max(lam_c) > 0 else np.where(Mc, muc, O[t])
     share = clean_w / max(tot_w, 1e-6)
     # static leftover (codec ghost) — only matters when the shot relied on inversions, i.e. little clean data
