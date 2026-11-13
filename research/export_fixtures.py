@@ -77,3 +77,25 @@ for tag, clip, sel in (("veo", "bench/veo31fast_flower_720p_marked.mp4", SEL3), 
     d = detect(fr, 1280, 720, 480, 320)
     save(f"det_{tag}", np.array([d["x"], d["y"], d["ncc"], d["scale"], float(d["ok"]), float(d["known"])], np.float32))
     print(tag, d)
+
+# ---- Task 3: DIS optical flow (OpenCV PRESET_MEDIUM) on real region-sized crops + a synthetic translation
+dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+def luma(clip, frames):
+    sel = "+".join(f"eq(n\\,{f})" for f in frames)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", os.path.join(BENCH, clip), "-vf", f"select='{sel}'", "-vsync", "0",
+                          "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True).stdout
+    return np.frombuffer(raw, np.uint8).reshape(-1, 720, 1280)
+k = 0
+for clip in ("bench/veo31fast_flower_720p_floor.mp4", "bench/teacup_static_720p_floor.mp4"):
+    fr = luma(clip, [50, 51, 54, 62])
+    for s in (1, 2, 3):                    # offsets 1, 4, 12
+        a0 = np.ascontiguousarray(fr[0, 620:720, 1140:1280]); a1 = np.ascontiguousarray(fr[s, 620:720, 1140:1280])
+        save(f"flow_i0_{k}", a0); save(f"flow_i1_{k}", a1); save(f"flow_cv_{k}", dis.calc(a0, a1, None)); k += 1
+tex = cv2.GaussianBlur(np.random.default_rng(5).uniform(0, 255, (100, 140)).astype(np.float32), (0, 0), 2.0)
+tex = np.clip((tex - tex.mean()) * 4 + 128, 0, 255)
+gy_, gx_ = np.mgrid[0:100, 0:140].astype(np.float32)
+sh = cv2.remap(tex, gx_ - 1.3, gy_ + 0.7, cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)   # I1(x) = I0(x - d), d = (1.3, -0.7)
+t0, t1 = np.round(tex).astype(np.uint8), np.round(np.clip(sh, 0, 255)).astype(np.uint8)
+save("shift_i0", t0); save("shift_i1", t1)
+f = dis.calc(t0, t1, None); e = np.hypot(f[..., 0] - 1.3, f[..., 1] + 0.7)[10:-10, 10:-10]
+print("opencv synthetic EPE median %.4f p90 %.4f" % (np.median(e), np.percentile(e, 90)))

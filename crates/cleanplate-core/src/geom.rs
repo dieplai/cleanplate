@@ -169,3 +169,37 @@ pub fn remap(src: &Plane, mapx: &Plane, mapy: &Plane, interp: Interp, border: Bo
     }
     out
 }
+
+/// `cv2.resize(src, (w, h), interpolation=cv2.INTER_LINEAR)` (pixel-centre mapping, edge taps clamped).
+pub fn resize_linear(p: &Plane, w: usize, h: usize) -> Plane {
+    let taps = |ssize: usize, dsize: usize| -> Vec<(usize, usize, f32)> {
+        let scale = ssize as f64 / dsize as f64;
+        (0..dsize)
+            .map(|d| {
+                let f = (d as f64 + 0.5) * scale - 0.5;
+                let mut s = f.floor() as isize;
+                let mut t = (f - s as f64) as f32;
+                if s < 0 {
+                    s = 0;
+                    t = 0.0;
+                }
+                if s >= ssize as isize - 1 {
+                    s = ssize as isize - 1;
+                    t = 0.0;
+                }
+                let s = s as usize;
+                (s, (s + 1).min(ssize - 1), t)
+            })
+            .collect()
+    };
+    let (tx, ty) = (taps(p.w, w), taps(p.h, h));
+    let mut out = Plane::new(w, h);
+    for (y, &(y0, y1, fy)) in ty.iter().enumerate() {
+        for (x, &(x0, x1, fx)) in tx.iter().enumerate() {
+            let a = p.at(x0, y0) * (1.0 - fx) + p.at(x1, y0) * fx;
+            let b = p.at(x0, y1) * (1.0 - fx) + p.at(x1, y1) * fx;
+            out.data[y * w + x] = a * (1.0 - fy) + b * fy;
+        }
+    }
+    out
+}

@@ -1,6 +1,7 @@
 //! cleanplate core: every algorithm on in-memory planes. No file, process or OS access (wasm32-ready).
 pub mod detect;
 pub mod filter;
+pub mod flow;
 pub mod geom;
 pub mod marks;
 pub mod ncc;
