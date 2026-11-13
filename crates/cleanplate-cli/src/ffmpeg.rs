@@ -173,7 +173,16 @@ pub fn encoder_args(codec: &str, inp: &Path, out: &Path, p: &Probe) -> Vec<Strin
     a.extend(s(&["-i", "-", "-i"]));
     a.push(inp.to_string_lossy().into_owned());
     // audio and container metadata of the source are carried over unchanged
-    a.extend(s(&["-map", "0:v", "-map", "1:a?", "-map_metadata", "1", "-c:a", "copy"]));
+    a.extend(s(&[
+        "-map",
+        "0:v",
+        "-map",
+        "1:a?",
+        "-map_metadata",
+        "1",
+        "-c:a",
+        "copy",
+    ]));
     a.extend(venc);
     a.extend(tags);
     a.push(out.to_string_lossy().into_owned());

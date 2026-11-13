@@ -23,11 +23,17 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     let t0 = Instant::now();
     let log = |m: String| println!("[{:6.1}s] {m}", t0.elapsed().as_secs_f32());
     if out.exists() && std::fs::canonicalize(inp)? == std::fs::canonicalize(out)? {
-        anyhow::bail!("the output {} is the input file; choose another name", out.display());
+        anyhow::bail!(
+            "the output {} is the input file; choose another name",
+            out.display()
+        );
     }
     let p = probe(inp)?;
     let (w, h) = (p.w, p.h);
-    anyhow::ensure!(w % 2 == 0 && h % 2 == 0, "odd frame size {w}x{h} is not supported (4:2:0 needs even dimensions)");
+    anyhow::ensure!(
+        w % 2 == 0 && h % 2 == 0,
+        "odd frame size {w}x{h} is not supported (4:2:0 needs even dimensions)"
+    );
     log(format!(
         "{w}x{h} @ {}, audio={}, colour={:?}",
         p.fps, p.has_audio, p.color
@@ -58,7 +64,11 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     let shots = shot_cuts(&thumbs);
     log(format!("shots: {} -> {:?}", shots.len(), shots));
     // only the frames detection samples become f32 (≈120), not the whole clip
-    let corners: Vec<Plane> = cy.iter().step_by(sample_step(n)).map(|c| Plane::from_u8(cw, ch, c)).collect();
+    let corners: Vec<Plane> = cy
+        .iter()
+        .step_by(sample_step(n))
+        .map(|c| Plane::from_u8(cw, ch, c))
+        .collect();
     let refs: Vec<&Plane> = corners.iter().collect();
     let det = match detect_video(&refs, w, h, o.min_ncc) {
         Ok(d) => d,
@@ -211,7 +221,10 @@ fn load_guide(
 ) -> Result<Guide> {
     let gp = probe(path)?;
     let (gw, gh) = (gp.w, gp.h);
-    anyhow::ensure!(gw % 2 == 0 && gh % 2 == 0, "guide: odd frame size {gw}x{gh} is not supported");
+    anyhow::ensure!(
+        gw % 2 == 0 && gh % 2 == 0,
+        "guide: odd frame size {gw}x{gh} is not supported"
+    );
     let sg = w as f32 / gw as f32;
     let maps = |pw: usize, ph: usize, ox: usize, oy: usize| -> (Plane, Plane) {
         let mx = Plane {

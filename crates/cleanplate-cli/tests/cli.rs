@@ -205,15 +205,38 @@ fn video_odd_size_is_rejected() {
     let (inp, out) = (tmp("odd.mkv"), tmp("odd_out.mkv"));
     let st = Command::new("ffmpeg")
         // testsrc2 rounds odd sizes to even; scale does not
-        .args(["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=1"])
-        .args(["-vf", "scale=641:361", "-pix_fmt", "yuv420p", "-c:v", "ffv1"])
+        .args([
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=640x360:rate=24:duration=1",
+        ])
+        .args([
+            "-vf",
+            "scale=641:361",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:v",
+            "ffv1",
+        ])
         .arg(&inp)
         .status()
         .unwrap();
     assert!(st.success());
-    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate")).arg(&inp).arg(&out).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate"))
+        .arg(&inp)
+        .arg(&out)
+        .output()
+        .unwrap();
     assert!(!o.status.success(), "odd frame size must be an error");
-    assert!(String::from_utf8_lossy(&o.stderr).contains("odd frame size"), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(
+        String::from_utf8_lossy(&o.stderr).contains("odd frame size"),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
     assert!(!out.exists());
 }
 
@@ -227,9 +250,17 @@ fn video_same_input_and_output_is_rejected() {
     let before = std::fs::read(&inp).unwrap();
     // a different path string for the same file: ffmpeg's own string check does not catch it
     let alias = inp.parent().unwrap().join(".").join("same.mkv");
-    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate")).arg(&inp).arg(&alias).output().unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate"))
+        .arg(&inp)
+        .arg(&alias)
+        .output()
+        .unwrap();
     assert!(!o.status.success());
-    assert_eq!(std::fs::read(&inp).unwrap(), before, "the input must be untouched");
+    assert_eq!(
+        std::fs::read(&inp).unwrap(),
+        before,
+        "the input must be untouched"
+    );
 }
 
 #[test]
@@ -239,8 +270,29 @@ fn video_failed_encode_leaves_no_output() {
     }
     // PCM audio cannot be stream-copied into WebM: ffmpeg fails after creating the file
     let (inp, out) = (tmp("pcm.mkv"), tmp("pcm_out.webm"));
-    make_clip_with(&inp, true, &["-f", "lavfi", "-i", "sine=duration=2", "-map", "0:v", "-map", "1:a", "-c:a", "pcm_s16le", "-shortest"]);
-    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate")).arg(&inp).arg(&out).args(["--codec", "ffv1"]).output().unwrap();
+    make_clip_with(
+        &inp,
+        true,
+        &[
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=duration=2",
+            "-map",
+            "0:v",
+            "-map",
+            "1:a",
+            "-c:a",
+            "pcm_s16le",
+            "-shortest",
+        ],
+    );
+    let o = Command::new(env!("CARGO_BIN_EXE_cleanplate"))
+        .arg(&inp)
+        .arg(&out)
+        .args(["--codec", "ffv1"])
+        .output()
+        .unwrap();
     assert!(!o.status.success(), "a failed encode must be an error");
     assert!(!out.exists(), "no partial output may be left behind");
 }
