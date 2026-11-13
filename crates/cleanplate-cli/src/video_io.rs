@@ -150,6 +150,7 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     // pass 2: paste the rebuilt region (feathered) into the untouched frames and encode
     let mut enc = Command::new("ffmpeg")
         .args(encoder_args(&codec, inp, out, &p))
+        .env("SVT_LOG", "1") // SVT-AV1 prints a banner on stderr by default; errors only
         .stdin(Stdio::piped())
         .spawn()
         .context("running ffmpeg encoder")?;
