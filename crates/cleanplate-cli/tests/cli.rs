@@ -448,3 +448,77 @@ fn errors_point_to_the_issue_tracker() {
         "{e}"
     );
 }
+
+/// A 512² textured still with the 48 px V1 diamond at its Gemini placement (margin 32), or without it.
+fn make_still(path: &Path, mark: bool) {
+    let s = 512usize;
+    let a = &cleanplate_core::marks::by_name("gemini-diamond-v1-48.png").alpha;
+    let (x0, y0) = (s - 32 - a.w, s - 32 - a.h);
+    let img = image::RgbImage::from_fn(s as u32, s as u32, |x, y| {
+        let (fx, fy) = (x as f32, y as f32);
+        let mut c = [0.3f32, 1.1, 2.0].map(|k| (128.0 + 60.0 * (0.13 * fx + k).sin() * (0.09 * fy - k).cos()).clamp(0.0, 255.0));
+        let (xx, yy) = (x as usize, y as usize);
+        if mark && xx >= x0 && xx < x0 + a.w && yy >= y0 && yy < y0 + a.h {
+            let al = a.at(xx - x0, yy - y0);
+            c = c.map(|v| (1.0 - al) * v + al * 255.0);
+        }
+        image::Rgb(c.map(|v| v.round() as u8))
+    });
+    img.save(path).unwrap();
+}
+
+#[test]
+fn batch_cleans_a_folder_resumes_and_reports() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let d = tmp("batch");
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(d.join("in/shots")).unwrap();
+    make_clip(&d.join("in/one.mkv"), true);
+    make_clip(&d.join("in/shots/two.mkv"), true);
+    make_still(&d.join("in/marked.png"), true);
+    make_still(&d.join("in/clean.png"), false);
+    let out = d.join("out");
+    let o = run_cli(&[d.join("in").as_os_str(), "-o".as_ref(), out.as_os_str(), "--format".as_ref(), "mkv".as_ref()]);
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert_eq!(o.status.code(), Some(0), "{stdout}\n{}", String::from_utf8_lossy(&o.stderr));
+    for f in ["one_clean.mkv", "shots/two_clean.mkv", "marked_clean.png"] {
+        assert!(out.join(f).exists(), "{f} missing\n{stdout}");
+    }
+    assert!(!out.join("clean_clean.png").exists(), "a still without a mark must not be written");
+    assert!(stdout.contains("3 cleaned, 1 without a mark, 0 skipped, 0 failed"), "{stdout}");
+    let report = std::fs::read_to_string(out.join("cleanplate-report.json")).unwrap();
+    assert_eq!(report.matches("\"status\":\"cleaned\"").count(), 3, "{report}");
+    let leftovers: Vec<_> = walkdir(&out).into_iter().filter(|p| p.contains(".partial.")).collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+    // a second run skips what is already there
+    let o = run_cli(&[d.join("in").as_os_str(), "-o".as_ref(), out.as_os_str(), "--format".as_ref(), "mkv".as_ref()]);
+    assert!(String::from_utf8_lossy(&o.stdout).contains("0 cleaned, 1 without a mark, 3 skipped"));
+}
+
+fn walkdir(d: &Path) -> Vec<String> {
+    let mut v = vec![];
+    for e in std::fs::read_dir(d).unwrap().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            v.extend(walkdir(&p));
+        } else {
+            v.push(p.to_string_lossy().into_owned());
+        }
+    }
+    v
+}
+
+#[test]
+fn one_file_mode_does_not_replace_an_existing_output() {
+    let (inp, out) = (tmp("keep_in.png"), tmp("keep_out.png"));
+    make_still(&inp, true);
+    std::fs::write(&out, b"precious").unwrap();
+    let o = run_cli(&[inp.as_os_str(), out.as_os_str()]);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("--overwrite"));
+    assert_eq!(std::fs::read(&out).unwrap(), b"precious");
+    let o = run_cli(&[inp.as_os_str(), out.as_os_str(), "--overwrite".as_ref()]);
+    assert_eq!(o.status.code(), Some(0), "{}", String::from_utf8_lossy(&o.stdout));
+}
