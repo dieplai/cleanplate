@@ -280,7 +280,7 @@ a.btn { text-decoration: none; }
 .fb-status.ok { color: var(--ok); } .fb-status.err { color: #b91c1c; }
 .fb .actions { margin-top: 0; }
 
-/* ══ v2: batch workspace ══ */
+/* ══ batch workspace ══ */
 .container.wide { max-width: 1120px; }
 .hero-section.compact { margin: 1.25rem auto 1.75rem; }
 .hero-section.compact .hero-title { font-size: 2.6rem; }

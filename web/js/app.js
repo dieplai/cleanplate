@@ -1,4 +1,4 @@
-// Cleanplate v2: a queue of images and videos cleaned in parallel within the device's cores and memory.
+// Cleanplate: a queue of images and videos cleaned in parallel within the device's cores and memory.
 // Only the original File and the encoded result are kept per item (no decoded pixels), so long queues stay small.
 import {
   BUDGET_MB, CORES, LOCAL_THREADS, SERVER_MAX_MB, cleanImageLocal, cleanVideoLocal, decodeImage, encodeImage, imageNeedMB,
@@ -437,7 +437,7 @@ function zoomVideoFrame() {
 // ── wiring ──
 const feedback = initFeedback((kind, it) => ({
   page: location.origin + location.pathname,
-  version: 'v2.0.0',
+  version: '2.0.0',
   browser: navigator.userAgent,
   cores: CORES,
   ram_gb: navigator.deviceMemory,
