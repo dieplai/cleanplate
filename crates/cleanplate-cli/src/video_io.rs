@@ -1,5 +1,6 @@
 //! Video path: ffmpeg decode -> core::session (pass 1, detect, rebuild, paste) -> ffmpeg encode.
 use crate::ffmpeg::{encoder_args, encoders, pick_codec, probe, Decoder};
+use crate::{finish, partial_path, Outcome};
 use anyhow::{Context, Result};
 use cleanplate_core::geom::{remap, Border, Interp};
 use cleanplate_core::session::{Rect, Session};
@@ -18,10 +19,15 @@ pub struct VideoOpts {
     pub guide: Option<std::path::PathBuf>,
 }
 
-/// Exit code: 0 done, 2 refused (no mark found with confidence; nothing written).
-pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
+/// Clean one video into `out`. `log` receives the progress lines (time-stamped).
+pub fn clean(
+    inp: &Path,
+    out: &Path,
+    o: &VideoOpts,
+    log: &mut dyn FnMut(String),
+) -> Result<Outcome> {
     let t0 = Instant::now();
-    let log = |m: String| println!("[{:6.1}s] {m}", t0.elapsed().as_secs_f32());
+    let mut log = |m: String| log(format!("[{:6.1}s] {m}", t0.elapsed().as_secs_f32()));
     if out.exists() && std::fs::canonicalize(inp)? == std::fs::canonicalize(out)? {
         anyhow::bail!(
             "the output {} is the input file, choose another name",
@@ -50,12 +56,12 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
     );
     let (cw, ch) = s.corner();
     log(format!("pass 1: {n} frames, corner crop {cw}x{ch}"));
-    let mut logf = |m: String| log(m);
-    let found = match s.detect(o.min_ncc, o.opaque, o.guide.is_some(), &mut logf) {
+    let found = match s.detect(o.min_ncc, o.opaque, o.guide.is_some(), &mut log) {
         Ok(f) => f,
         Err(r) => {
-            println!("{r} - leaving the video untouched");
-            return Ok(2);
+            return Ok(Outcome::Refused(format!(
+                "{r} - leaving the video untouched"
+            )))
         }
     };
     let guide = match (&o.guide, found.opaque) {
@@ -67,10 +73,12 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         None | Some("tv") | Some("unknown") => 235.0,
         _ => 255.0,
     };
-    s.rebuild(&params, guide.as_ref(), &mut logf);
+    s.rebuild(&params, guide.as_ref(), &mut log);
     // pass 2: paste the rebuilt region (feathered) into the untouched frames and encode
+    // encode to a hidden partial file, renamed into place only when complete
+    let tmp = partial_path(out);
     let mut enc = Command::new("ffmpeg")
-        .args(encoder_args(&codec, inp, out, &p))
+        .args(encoder_args(&codec, inp, &tmp, &p))
         .env("SVT_LOG", "1") // SVT-AV1 prints a banner on stderr by default; errors only
         .stdin(Stdio::piped())
         .spawn()
@@ -96,15 +104,20 @@ pub fn run(inp: &Path, out: &Path, o: &VideoOpts) -> Result<i32> {
         (_, Err(e)) => Some(format!("waiting for ffmpeg: {e}")),
         _ => Some("encoding failed".into()),
     };
+    let failed = failed.or_else(|| {
+        finish(&tmp, out)
+            .err()
+            .map(|e| format!("moving the result into place: {e}"))
+    });
     if let Some(msg) = failed {
-        let _ = std::fs::remove_file(out);
+        let _ = std::fs::remove_file(&tmp);
         anyhow::bail!("{msg}, no output written");
     }
     let mb = std::fs::metadata(out)
         .map(|m| m.len() as f64 / 1e6)
         .unwrap_or(0.0);
     log(format!("done -> {} ({codec}), {mb:.1} MB", out.display()));
-    Ok(0)
+    Ok(Outcome::Cleaned)
 }
 
 /// Guide clip (same clip, lower resolution, already cleaned) resampled onto the region grid, frame for frame.

@@ -1,6 +1,6 @@
 [package]
 name = "cleanplate"
-version = "1.0.0"
+version = "2.0.0"
 description = "Remove visible generator marks (Veo, Gemini) from video and stills, leaving a clean plate"
 edition.workspace = true
 rust-version.workspace = true

@@ -105,10 +105,25 @@ cleanplate clip.mp4 clip_clean.mkv              # lossless FFV1
 cleanplate clip_1080p.mp4 out.mov --guide clip_720p_clean.mov   # AI-upscaled download + its cleaned 720p
 ```
 
+**Many files at once.** Give any number of files and folders and an output folder:
+
+```bash
+cleanplate downloads/ -o cleaned/                       # every image and video under downloads/, sub-folders kept
+cleanplate a.mp4 b.png shots/ -o cleaned/ --format mov  # videos as ProRes, images as PNG (default)
+```
+
+Results are written as `<name>_clean.<ext>`, two files at a time on machines with 8+ cores (measured: 17 clips in
+198 s instead of 245 s one by one), within the available memory. A file that fails never stops the others, an output
+is only written under its final name once it is complete, and results that already exist are skipped, so an
+interrupted run simply resumes. A line per file, a summary and `cleanplate-report.json` tell what happened.
+
 On Windows type `.\cleanplate.exe` instead of `cleanplate` when you run it from the folder you unzipped.
 
 | Option | Meaning |
 |---|---|
+| `-o DIR` | Clean many files into this folder (see above) |
+| `--format mp4\|mov\|mkv`, `--image-format png\|jpg\|webp` | With `-o`: output formats for videos and images |
+| `-j N`, `--overwrite`, `-v` | With `-o`: files at the same time (default automatic), replace existing results, print every log |
 | `--codec auto\|h264x\|av1\|h264\|prores\|ffv1` | Video encoder. `auto` picks from the output extension and what your ffmpeg offers |
 | `--guide FILE` | For Flow 1080p / 4K downloads: the same clip at 720p, already cleaned |
 | `--threads N` | Worker threads (default: all cores) |

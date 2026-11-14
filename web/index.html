@@ -7,7 +7,7 @@
   <script src="coi-serviceworker.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cleanplate · visible AI mark remover</title>
-  <meta name="description" content="Remove the visible Gemini / Nano Banana / Veo mark from your images and videos, in your browser. Exact un-blending, bit-identical to the cleanplate CLI. Your image never leaves your device." />
+  <meta name="description" content="Remove the visible Gemini, Nano Banana and Veo mark from many images and videos at once, in your browser. Nothing is uploaded." />
   <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="preload" href="fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="style.css" />
@@ -16,12 +16,11 @@
   <header class="app-header">
     <div class="header-container">
       <a href="./" class="brand" title="Cleanplate">
-        <img class="brand-logo" src="assets/logo.png" alt="" width="38" height="38" />
+        <img class="brand-logo" src="assets/logo.png" alt="" width="34" height="34" />
         <span class="brand-title">Cleanplate</span>
       </a>
       <nav class="nav-menu" aria-label="Main navigation">
-        <a href="#panel-image" class="nav-link" data-tab="image">Image</a>
-        <a href="#panel-video" class="nav-link" data-tab="video">Video</a>
+        <a href="#how" class="nav-link">How it works</a>
         <button type="button" class="nav-link nav-btn js-feedback" data-kind="idea">Feedback</button>
         <a href="https://github.com/dieplai/cleanplate" class="btn-github" target="_blank" rel="noopener noreferrer">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -31,135 +30,111 @@
     </div>
   </header>
 
-  <main class="container">
-    <section class="hero-section">
-      <p class="hero-eyebrow">Open source · MIT · Rust → WebAssembly</p>
+  <main class="container wide">
+    <section class="hero-section compact">
       <h1 class="hero-title">Remove the visible AI mark.<br /><span class="hero-accent">Keep every other pixel.</span></h1>
       <p class="hero-description">
-        Cleanplate finds the Gemini / Nano Banana diamond or the Veo mark, measures it on <strong>your</strong> file and
-        un-blends it exactly. On video it recovers the hidden pixels from neighbouring frames. Everything runs in this
-        tab - nothing is uploaded.
+        Drop as many Gemini, Nano Banana and Veo images and videos as you like. Cleanplate measures the mark on each
+        file, un-blends it exactly and rebuilds video from neighbouring frames, on all your CPU cores.
+        <span id="where-text">Nothing is uploaded.</span>
       </p>
       <div class="hero-badges">
-        <span class="hero-badge-pill"><i class="dot" style="--c:#0d9488"></i>Runs on your device</span>
-        <span class="hero-badge-pill"><i class="dot" style="--c:#2563eb"></i>Images match the CLI bit for bit</span>
+        <span class="hero-badge-pill"><i class="dot" style="--c:#0d9488"></i><span id="engine-pill">Runs on your device</span></span>
+        <span class="hero-badge-pill"><i class="dot" style="--c:#2563eb"></i>Many files at once</span>
         <span class="hero-badge-pill"><i class="dot" style="--c:#7c3aed"></i>Refuses when unsure</span>
         <span class="hero-badge-pill"><i class="dot" style="--c:#ea580c"></i>Visible marks only</span>
       </div>
     </section>
 
-    <div class="hero-bg-frame-container left" aria-hidden="true">
-      <div class="hero-bg-frame"><img src="assets/before.webp" alt="" class="hero-bg-img" width="250" height="250" /><span class="frame-tag">before</span></div>
-    </div>
-    <div class="hero-bg-frame-container right" aria-hidden="true">
-      <div class="hero-bg-frame"><img src="assets/after.webp" alt="" class="hero-bg-img" width="350" height="350" /><span class="frame-tag ok">after</span></div>
-    </div>
-
-    <div class="tab-container" role="tablist">
-      <button id="tab-image" class="tab-btn active" role="tab" aria-selected="true" data-tab="image">Image</button>
-      <button id="tab-video" class="tab-btn" role="tab" aria-selected="false" data-tab="video">Video</button>
-    </div>
-
-    <section id="panel-image" class="card">
-      <label id="dropzone" class="dropzone" for="file-input">
-        <svg class="dropzone-icon" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-5 5m5-5 5 5M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        <span class="dropzone-title">Drop a Gemini or Nano Banana image</span>
-        <span class="dropzone-sub">PNG, JPG or WebP · or click to choose · paste works too</span>
-        <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
-      </label>
-
-      <div id="busy" class="busy hidden" role="status">
-        <div class="spinner"></div>
-        <p class="busy-title">Cleaning <span id="busy-name"></span>…</p>
-        <p class="busy-sub"><span id="busy-time">0.0</span> s · on all your CPU cores, nothing is uploaded</p>
+    <section class="workspace card" id="workspace">
+      <div id="dropzone" class="dropzone big" tabindex="0" role="button" aria-label="Add images and videos">
+        <svg class="dropzone-icon" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-5 5m5-5 5 5M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span class="dropzone-title">Drop images, videos or whole folders</span>
+        <span class="dropzone-sub">PNG, JPG, WebP · MP4 and MOV (H.264) · paste works too</span>
+        <span class="dropzone-actions">
+          <button type="button" class="btn btn-primary" data-pick="files">Choose files</button>
+          <button type="button" class="btn btn-secondary" data-pick="folder">Choose a folder</button>
+        </span>
       </div>
+      <input id="file-input" type="file" multiple accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,.mp4,.mov,.m4v" hidden />
+      <input id="folder-input" type="file" webkitdirectory multiple hidden />
 
-      <div id="refused" class="notice hidden">
-        <p class="notice-title">No mark found with confidence - image left untouched</p>
-        <p class="notice-sub">Cleanplate only acts when it is sure the known mark is there. If you can still see one, tell us with the button below, it helps us support more marks.</p>
-        <pre id="refused-log" class="log"></pre>
-        <div class="actions center">
-          <button class="btn btn-secondary js-again" type="button">Try another image</button>
-          <button class="btn btn-secondary js-feedback" type="button" data-kind="refused">I can see a mark - report it</button>
-        </div>
-      </div>
-
-      <div id="result" class="hidden">
-        <div id="detect-badge" class="detect-badge"></div>
-        <div class="result-row">
-          <div class="compare" id="compare">
-            <canvas id="cv-after"></canvas>
-            <canvas id="cv-before" class="before"></canvas>
-            <div class="compare-line" aria-hidden="true"><span></span></div>
-            <input id="compare-range" type="range" min="0" max="100" value="50" aria-label="Before / after split" />
-            <span class="compare-tag l">before</span><span class="compare-tag r">after</span>
+      <div id="queue-view" class="hidden">
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <button type="button" class="btn btn-secondary btn-sm" data-pick="files">Add files</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-pick="folder">Add a folder</button>
+            <label class="select-sm" title="Format of the cleaned images">Images as
+              <select id="image-format"><option value="png">PNG</option><option value="jpg">JPG</option><option value="webp">WebP</option></select>
+            </label>
           </div>
-          <div class="zoom-col">
-            <figure class="zoom-card"><figcaption>Mark area · original</figcaption><canvas id="zoom-before" width="220" height="220"></canvas></figure>
-            <figure class="zoom-card"><figcaption class="ok">Mark area · cleaned</figcaption><canvas id="zoom-after" width="220" height="220"></canvas></figure>
+          <div class="toolbar-group">
+            <button type="button" class="btn btn-secondary btn-sm" id="clear-done">Clear finished</button>
+            <button type="button" class="btn btn-secondary btn-sm hidden" id="save-folder">Save all to a folder</button>
+            <button type="button" class="btn btn-primary btn-sm" id="download-zip">Download all (ZIP)</button>
           </div>
         </div>
-        <details class="log-box"><summary>What Cleanplate measured</summary><pre id="result-log" class="log"></pre></details>
-        <div class="actions">
-          <button class="btn btn-secondary js-again" type="button">Clean another</button>
-          <button id="btn-download" class="btn btn-primary" type="button">Download PNG</button>
-        </div>
+        <div class="summary" id="summary" role="status"></div>
+        <div class="progress overall"><span id="overall-bar"></span></div>
+        <ul class="queue" id="queue"></ul>
+        <p class="queue-note" id="queue-note"></p>
       </div>
-      <p id="error" class="error hidden"><span class="error-text"></span> <button type="button" class="link js-feedback" data-kind="bug">Report this</button></p>
     </section>
 
-    <section id="panel-video" class="card hidden">
-      <label id="v-dropzone" class="dropzone" for="v-input">
-        <svg class="dropzone-icon" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2z"/></svg>
-        <span class="dropzone-title">Drop a Veo / Gemini / Flow video</span>
-        <span class="dropzone-sub">MP4 or MOV (H.264) · best at the original 720p · audio is kept</span>
-        <input id="v-input" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" hidden />
-      </label>
-
-      <div id="v-busy" class="busy hidden" role="status">
-        <div class="spinner"></div>
-        <p class="busy-title" id="v-stage">Starting…</p>
-        <div class="progress"><span id="v-bar"></span></div>
-        <p class="busy-sub"><span id="v-time">0</span> s · on all your CPU cores, nothing is uploaded</p>
+    <section id="how" class="how">
+      <div class="how-grid">
+        <div class="how-card"><span class="how-num">1</span><h3>Drop everything</h3><p>Images and videos, one by one or whole folders. Sub-folders are kept when you save.</p></div>
+        <div class="how-card"><span class="how-num">2</span><h3>Cleaned in parallel</h3><p>On all your CPU cores, two files at a time when your machine has the cores and the memory for it.</p></div>
+        <div class="how-card"><span class="how-num">3</span><h3>Check, then save</h3><p>Compare any result with its original, then download it, download everything as a ZIP, or save straight into a folder.</p></div>
       </div>
-
-      <div id="v-refused" class="notice hidden">
-        <p class="notice-title">No mark found with confidence - video left untouched</p>
-        <pre id="v-refused-log" class="log"></pre>
-        <div class="actions center">
-          <button class="btn btn-secondary js-v-again" type="button">Try another video</button>
-          <button class="btn btn-secondary js-feedback" type="button" data-kind="refused">I can see a mark - report it</button>
-        </div>
-      </div>
-
-      <div id="v-result" class="hidden">
-        <div id="v-badge" class="detect-badge"></div>
-        <div class="video-pair">
-          <figure><figcaption>Original</figcaption><video id="v-before" muted playsinline loop></video></figure>
-          <figure><figcaption class="ok">Cleaned</figcaption><video id="v-after" muted playsinline loop></video></figure>
-        </div>
-        <div class="video-pair zoom-pair">
-          <figure><figcaption>Mark area · original (zoomed)</figcaption><canvas id="vz-before" width="480" height="270"></canvas></figure>
-          <figure><figcaption class="ok">Mark area · cleaned (zoomed)</figcaption><canvas id="vz-after" width="480" height="270"></canvas></figure>
-        </div>
-        <details class="log-box"><summary>What Cleanplate measured</summary><pre id="v-log" class="log"></pre></details>
-        <div class="actions">
-          <button class="btn btn-secondary js-v-again" type="button">Clean another</button>
-          <button id="v-play" class="btn btn-secondary" type="button">Play both</button>
-          <a id="v-download" class="btn btn-primary" download>Download MP4</a>
-        </div>
-      </div>
-      <p id="v-error" class="error hidden"><span class="error-text"></span> <button type="button" class="link js-feedback" data-kind="bug">Report this</button></p>
+      <p class="how-note">Visible marks only: SynthID and C2PA are not touched. Labelling AI-generated content is your
+        responsibility: many places require it by law, for example a visible label on realistic AI images and videos in
+        Vietnam. Use Cleanplate on content you have the right to edit. The method and its benchmark are on
+        <a href="https://github.com/dieplai/cleanplate#method">GitHub</a>.</p>
     </section>
-
   </main>
 
   <footer class="app-footer">
-    <p>Cleanplate v1.0.0 · MIT · <a href="https://github.com/dieplai/cleanplate">github.com/dieplai/cleanplate</a></p>
+    <p>Cleanplate v2.0.0 · MIT · <a href="https://github.com/dieplai/cleanplate">github.com/dieplai/cleanplate</a></p>
     <p class="muted">Not affiliated with or endorsed by Google. Gemini and Veo are trademarks of Google LLC.</p>
     <p><button type="button" class="link js-feedback" data-kind="idea">Send feedback or an idea</button></p>
     <p class="muted">Built on the work of others: <a href="https://github.com/dieplai/cleanplate#credits">credits</a> · <a href="LICENSE-THIRD-PARTY.md">third-party licenses</a></p>
   </footer>
+
+  <dialog id="viewer" class="viewer" aria-labelledby="viewer-title">
+    <div class="viewer-head">
+      <h2 id="viewer-title">Result</h2>
+      <span class="spacer"></span>
+      <a id="viewer-download" class="btn btn-primary btn-sm" download>Download</a>
+      <button type="button" class="btn btn-secondary btn-sm" id="viewer-close">Close</button>
+    </div>
+    <div id="viewer-badge" class="detect-badge"></div>
+    <div id="viewer-image" class="result-row hidden">
+      <div class="compare" id="compare">
+        <canvas id="cv-after"></canvas>
+        <canvas id="cv-before" class="before"></canvas>
+        <div class="compare-line" aria-hidden="true"><span></span></div>
+        <input id="compare-range" type="range" min="0" max="100" value="50" aria-label="Before / after split" />
+        <span class="compare-tag l">before</span><span class="compare-tag r">after</span>
+      </div>
+      <div class="zoom-col">
+        <figure class="zoom-card"><figcaption>Mark area · original</figcaption><canvas id="zoom-before" width="220" height="220"></canvas></figure>
+        <figure class="zoom-card"><figcaption class="ok">Mark area · cleaned</figcaption><canvas id="zoom-after" width="220" height="220"></canvas></figure>
+      </div>
+    </div>
+    <div id="viewer-video" class="hidden">
+      <div class="video-pair">
+        <figure><figcaption>Original</figcaption><video id="v-before" muted playsinline loop></video></figure>
+        <figure><figcaption class="ok">Cleaned</figcaption><video id="v-after" muted playsinline loop></video></figure>
+      </div>
+      <div class="video-pair zoom-pair">
+        <figure><figcaption>Mark area · original (zoomed)</figcaption><canvas id="vz-before" width="480" height="270"></canvas></figure>
+        <figure><figcaption class="ok">Mark area · cleaned (zoomed)</figcaption><canvas id="vz-after" width="480" height="270"></canvas></figure>
+      </div>
+      <div class="actions"><button type="button" class="btn btn-secondary btn-sm" id="v-play">Play both</button></div>
+    </div>
+    <details class="log-box"><summary>What Cleanplate measured</summary><pre id="viewer-log" class="log"></pre></details>
+  </dialog>
 
   <dialog id="fb" class="fb" aria-labelledby="fb-title">
     <form id="fb-form">
@@ -176,7 +151,7 @@
         <input id="fb-email" type="email" maxlength="200" autocomplete="email" /></label>
       <label class="fb-check"><input id="fb-ctx-on" type="checkbox" checked /> Include these technical details</label>
       <pre id="fb-ctx" class="log fb-ctx"></pre>
-      <p class="fb-note">Your image or video is never sent, and neither is its file name.</p>
+      <p class="fb-note">Your images and videos are never sent, and neither are their file names.</p>
       <p id="fb-status" class="fb-status" role="status"></p>
       <div class="actions">
         <button type="button" class="btn btn-secondary" id="fb-cancel">Cancel</button>
@@ -185,6 +160,6 @@
     </form>
   </dialog>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

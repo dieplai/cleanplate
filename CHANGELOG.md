@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0 - 2026-11-14
+
+### Many files at once
+- CLI: `cleanplate IN... -o DIR` cleans any number of files and folders (sub-folders kept) into `<name>_clean.<ext>`,
+  two at a time on 8+ cores within the available memory (17 clips: 245 s -> 198 s). A failing or crashing file
+  never stops the others. Outputs are written under a hidden partial name and renamed when complete, existing
+  results are skipped so an interrupted run resumes, and `cleanplate-report.json` records every file.
+- Browser: a batch workspace. Drop files or whole folders, follow each file's progress, compare any result, then
+  download it, download everything as a ZIP, or save straight into a folder as results finish (Chrome, Edge). The
+  same scheduling rule as the CLI, one worker per file, and no decoded pixels kept between files.
+
+### Changed
+- One-file mode no longer replaces an existing output unless `--overwrite` is given.
+
+
 ## 1.0.0 - 2026-11-14
 
 First stable release. The method and its quality are unchanged from 0.1.0 (ground-truth gate: 36.65 dB mean vs the

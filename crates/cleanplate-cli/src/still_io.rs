@@ -1,4 +1,5 @@
 //! Still images: read (PNG / JPEG / WebP, any channel layout), remove the mark, write in the output's format.
+use crate::{finish, partial_path, Outcome};
 use anyhow::{Context, Result};
 use cleanplate_core::still::remove_still;
 use std::path::Path;
@@ -11,8 +12,8 @@ pub fn is_still(p: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Exit code: 0 done, 2 refused (nothing written).
-pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
+/// Clean one still into `out` (its extension picks the format). `log` receives the progress lines.
+pub fn clean(inp: &Path, out: &Path, lam: f32, log: &mut dyn FnMut(String)) -> Result<Outcome> {
     // the format comes from the content, not the extension (a JPEG saved as .png is common)
     let reader = image::ImageReader::open(inp)
         .with_context(|| format!("opening {}", inp.display()))?
@@ -23,10 +24,10 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
         .with_context(|| format!("reading {}", inp.display()))?;
     let has_alpha = img.color().has_alpha();
     if img.color().bytes_per_pixel() > img.color().channel_count() {
-        eprintln!(
+        log(format!(
             "note: {} has 16-bit channels, the result is saved with 8-bit channels",
             inp.display()
-        );
+        ));
     }
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as usize, rgba.height() as usize);
@@ -44,13 +45,10 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
     };
     let r = match remove_still(&rgb, w, h, lossy, lam) {
         Ok(r) => r,
-        Err(e) => {
-            println!("{e} - image left untouched");
-            return Ok(2);
-        }
+        Err(e) => return Ok(Outcome::Refused(format!("{e} - image left untouched"))),
     };
     for l in &r.log {
-        println!("{l}");
+        log(l.clone());
     }
     let mut outimg = rgba;
     for (i, p) in outimg.pixels_mut().enumerate() {
@@ -58,7 +56,18 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
         p[1] = r.rgb[i * 3 + 1];
         p[2] = r.rgb[i * 3 + 2];
     }
-    match ext(out).as_str() {
+    let tmp = partial_path(out);
+    let written = write(outimg, has_alpha, &ext(out), &tmp);
+    if let Err(e) = written.and_then(|_| finish(&tmp, out).map_err(Into::into)) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e.context(format!("writing {}", out.display())));
+    }
+    log(format!("done -> {}", out.display()));
+    Ok(Outcome::Cleaned)
+}
+
+fn write(outimg: image::RgbaImage, has_alpha: bool, ext: &str, out: &Path) -> Result<()> {
+    match ext {
         "jpg" | "jpeg" => {
             // jpeg-encoder at q95 4:2:0 (the reference's OpenCV settings); measured 0.17 dB closer to libjpeg than the
             // image crate's encoder on textured content. PNG output is lossless and recommended.
@@ -77,6 +86,5 @@ pub fn run(inp: &Path, out: &Path, lam: f32) -> Result<i32> {
             .to_rgb8()
             .save(out)?,
     }
-    println!("done -> {}", out.display());
-    Ok(0)
+    Ok(())
 }

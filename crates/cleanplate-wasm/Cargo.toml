@@ -1,6 +1,6 @@
 [package]
 name = "cleanplate-wasm"
-version = "1.0.0"
+version = "2.0.0"
 description = "WebAssembly build of the cleanplate still remover for the browser demo (web/)"
 edition.workspace = true
 rust-version.workspace = true
