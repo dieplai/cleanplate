@@ -9,7 +9,7 @@
 [![Downloads](https://img.shields.io/github/downloads/dieplai/cleanplate/total?color=0f766e)](https://github.com/dieplai/cleanplate/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Platforms](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-supported-555.svg)](#cài-đặt)
-[![Dùng thử trên trình duyệt](https://img.shields.io/badge/d%C3%B9ng%20th%E1%BB%AD-tr%C3%AAn%20tr%C3%ACnh%20duy%E1%BB%87t-14b8a6.svg)](https://dieplai.github.io/cleanplate/)
+[![Dùng thử trên trình duyệt](https://img.shields.io/badge/d%C3%B9ng%20th%E1%BB%AD-tr%C3%AAn%20tr%C3%ACnh%20duy%E1%BB%87t-14b8a6.svg)](https://cleanplate.dieplai.io.vn/)
 
 [English](./README.md) · **Tiếng Việt**
 
@@ -66,9 +66,10 @@ chính xác của logo ngay trên ảnh của bạn thay vì giả định.
 
 ### Cách 1 - dùng trên trình duyệt (không cần cài gì)
 
-Mở **[dieplai.github.io/cleanplate](https://dieplai.github.io/cleanplate/)** bằng Chrome hoặc Edge rồi kéo file vào.
-Mọi thứ chạy trên máy bạn, dùng tất cả nhân CPU. File không được tải lên đâu cả. Ảnh cho kết quả giống hệt CLI. Video
-được nén lại bằng H.264.
+Mở **[cleanplate.dieplai.io.vn](https://cleanplate.dieplai.io.vn/)** bằng Chrome hoặc Edge rồi kéo file vào.
+File được xử lý ngay trên máy bạn, dùng tất cả nhân CPU. Với máy ít nhân, hoặc file quá lớn so với bộ nhớ của trình
+duyệt, trang sẽ dùng server của Cleanplate, báo rõ điều đó, và xoá file ngay sau khi xong. Ảnh cho kết quả giống hệt
+CLI. Video được nén lại bằng H.264.
 
 ### Cách 2 - tải công cụ dòng lệnh
 

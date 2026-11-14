@@ -12,6 +12,7 @@
   same scheduling rule as the CLI, one worker per file, and no decoded pixels kept between files.
 
 ### Changed
+- The page now lives at https://cleanplate.dieplai.io.vn. The old GitHub Pages address redirects there.
 - One-file mode no longer replaces an existing output unless `--overwrite` is given.
 
 

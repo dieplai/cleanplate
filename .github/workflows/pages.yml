@@ -1,9 +1,10 @@
 name: Pages
-# The browser demo (web/) at https://<owner>.github.io/cleanplate/
+# The page lives at https://cleanplate.dieplai.io.vn (deploy/). The old GitHub Pages address only redirects there,
+# so links shared before 2.0.0 keep working.
 on:
   push:
     branches: [main]
-    paths: ["web/**", "LICENSE-THIRD-PARTY.md", ".github/workflows/pages.yml"]
+    paths: [".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,10 +20,17 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - run: cp LICENSE LICENSE-THIRD-PARTY.md web/   # the page ships third-party code: its notices go with it
+      - run: |
+          mkdir site
+          cat > site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Cleanplate has moved</title>
+          <link rel="canonical" href="https://cleanplate.dieplai.io.vn/">
+          <meta http-equiv="refresh" content="0; url=https://cleanplate.dieplai.io.vn/">
+          <p>Cleanplate has moved to <a href="https://cleanplate.dieplai.io.vn/">cleanplate.dieplai.io.vn</a>.</p>
+          HTML
+          cp site/index.html site/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: site
       - id: deploy
         uses: actions/deploy-pages@v4

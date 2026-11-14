@@ -9,7 +9,7 @@
 [![Downloads](https://img.shields.io/github/downloads/dieplai/cleanplate/total?color=0f766e)](https://github.com/dieplai/cleanplate/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Platforms](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-supported-555.svg)](#install)
-[![Try it in the browser](https://img.shields.io/badge/try%20it-in%20your%20browser-14b8a6.svg)](https://dieplai.github.io/cleanplate/)
+[![Try it in the browser](https://img.shields.io/badge/try%20it-in%20your%20browser-14b8a6.svg)](https://cleanplate.dieplai.io.vn/)
 
 **English** · [Tiếng Việt](./README.vi.md)
 
@@ -67,9 +67,10 @@ measured: <a href="./docs/benchmark.md">docs/benchmark.md</a>.</sub>
 
 ### Option 1 - in the browser (nothing to install)
 
-Open **[dieplai.github.io/cleanplate](https://dieplai.github.io/cleanplate/)** in Chrome or Edge and drop a file.
-Everything runs on your device, on all its CPU cores. The file is never uploaded. Images give exactly the same
-result as the CLI. Video is re-encoded as H.264.
+Open **[cleanplate.dieplai.io.vn](https://cleanplate.dieplai.io.vn/)** in Chrome or Edge and drop your files.
+They are cleaned on your device, on all its CPU cores. On a machine with few cores, or for a file too big for the
+browser's memory, the page uses the Cleanplate server instead, says so, and deletes the file right after. Images
+give exactly the same result as the CLI. Video is re-encoded as H.264.
 
 ### Option 2 - download the command-line tool
 

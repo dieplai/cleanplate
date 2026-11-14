@@ -21,6 +21,6 @@ Limits (environment of the service): `CLEANPLATE_MAX_MB` (95, Cloudflare's free 
 `CLEANPLATE_TIMEOUT` (95 s, Cloudflare drops responses after 100 s). One file is cleaned at a time. Uploads and
 results are deleted as soon as the response is sent.
 
-Feedback sent from the page (also from the GitHub Pages copy, allowed by `CLEANPLATE_CORS`) is stored in
+Feedback sent from the page (also from other sites allowed by `CLEANPLATE_CORS`) is stored in
 `/var/lib/cleanplate/feedback.db` (SQLite) and listed at `/admin/`, behind the password above. Users see the
 technical details before sending and can leave them out. Files and file names are never sent.
