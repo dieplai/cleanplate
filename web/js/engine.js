@@ -21,8 +21,9 @@ export const serverReady = fetch('api/health')
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => (SERVER = j?.ok ? j : null))
   .catch(() => null);
-/** A few cores in the browser lose to the server once upload time counts, many cores win. */
-export const preferServer = () => SERVER && LOCAL_THREADS < 6;
+/** The device does the work whenever it can (the server has 4 cores for everyone). The server only takes files when
+ * this browser cannot run threads, a file is too big for its memory, or it cannot decode video. */
+export const preferServer = () => SERVER && LOCAL_THREADS < 2;
 
 /** POST a file to the server: {status: 'cleaned', blob, log, secs} | {status: 'refused', log}. */
 export function serverClean(file, onUpload) {
